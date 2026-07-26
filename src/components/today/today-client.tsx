@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Utensils } from "lucide-react";
 import { EventRow } from "@/components/events/event-row";
 import { EventModal } from "@/components/events/event-modal";
@@ -8,6 +9,7 @@ import type { EventRecord, MemberLite } from "@/components/events/types";
 import { RideRow } from "@/components/rides/ride-row";
 import { DriverPicker } from "@/components/rides/driver-picker";
 import type { ExternalDriverRecord, RideRecord } from "@/components/rides/types";
+import { QuickAdd } from "@/components/capture/quick-add";
 
 type TimelineItem =
   | { kind: "event"; time: number; event: EventRecord }
@@ -35,6 +37,7 @@ export function TodayClient({
   externalDrivers: ExternalDriverRecord[];
   dinner: { meal: string; isYomTov: boolean } | null;
 }) {
+  const router = useRouter();
   const [eventList, setEventList] = useState(initialEvents);
   const [ridesList, setRidesList] = useState(initialRides);
   const [modalEvent, setModalEvent] = useState<EventRecord | "new" | null>(null);
@@ -92,6 +95,8 @@ export function TodayClient({
           <Plus size={16} /> Add
         </button>
       </div>
+
+      <QuickAdd onApplied={() => router.refresh()} />
 
       {dinner && (
         <div
