@@ -1,0 +1,151 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f7f5ef;
+  --bg-panel: #ffffff;
+  --text: #111111;
+  --text-muted: #6b6656;
+  --accent: #d97706;
+  --accent-text: #ffffff;
+  --border: #d8d4c6;
+  --tile-bg: #111111;
+  --tile-fg: #f7f5ef;
+  --danger: #b91c1c;
+  --success: #15803d;
+
+  --person-jonah: #2563eb;
+  --person-ava: #db2777;
+  --person-emma: #f59e0b;
+  --person-dad: #059669;
+  --person-mom: #7c3aed;
+  --person-sitter: #0d9488;
+  --person-external: #64748b;
+
+  --font-display: var(--font-archivo-black);
+  --font-ui: var(--font-archivo);
+  --font-numeral: var(--font-space-grotesk);
+  --font-serif: var(--font-instrument-serif);
+}
+
+:root[data-theme="dark"] {
+  --bg: #0a0f1a;
+  --bg-panel: #101a2e;
+  --text: #e2e8f4;
+  --text-muted: #8ca0c4;
+  --accent: #facc15;
+  --accent-text: #101a2e;
+  --border: #1c2740;
+  --tile-bg: #1c2740;
+  --tile-fg: #facc15;
+  --danger: #f87171;
+  --success: #4ade80;
+
+  --person-jonah: color-mix(in srgb, #2563eb 70%, white 30%);
+  --person-ava: color-mix(in srgb, #db2777 70%, white 30%);
+  --person-emma: color-mix(in srgb, #f59e0b 70%, white 30%);
+  --person-dad: color-mix(in srgb, #059669 70%, white 30%);
+  --person-mom: color-mix(in srgb, #7c3aed 70%, white 30%);
+  --person-sitter: color-mix(in srgb, #0d9488 70%, white 30%);
+  --person-external: #94a3b8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0f1a;
+    --bg-panel: #101a2e;
+    --text: #e2e8f4;
+    --text-muted: #8ca0c4;
+    --accent: #facc15;
+    --accent-text: #101a2e;
+    --border: #1c2740;
+    --tile-bg: #1c2740;
+    --tile-fg: #facc15;
+    --danger: #f87171;
+    --success: #4ade80;
+
+    --person-jonah: color-mix(in srgb, #2563eb 70%, white 30%);
+    --person-ava: color-mix(in srgb, #db2777 70%, white 30%);
+    --person-emma: color-mix(in srgb, #f59e0b 70%, white 30%);
+    --person-dad: color-mix(in srgb, #059669 70%, white 30%);
+    --person-mom: color-mix(in srgb, #7c3aed 70%, white 30%);
+    --person-sitter: color-mix(in srgb, #0d9488 70%, white 30%);
+    --person-external: #94a3b8;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-panel: var(--bg-panel);
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-accent: var(--accent);
+  --color-accent-text: var(--accent-text);
+  --color-border: var(--border);
+  --color-tile-bg: var(--tile-bg);
+  --color-tile-fg: var(--tile-fg);
+  --color-danger: var(--danger);
+  --color-success: var(--success);
+
+  --color-person-jonah: var(--person-jonah);
+  --color-person-ava: var(--person-ava);
+  --color-person-emma: var(--person-emma);
+  --color-person-dad: var(--person-dad);
+  --color-person-mom: var(--person-mom);
+  --color-person-sitter: var(--person-sitter);
+  --color-person-external: var(--person-external);
+
+  --font-display: var(--font-display);
+  --font-ui: var(--font-ui);
+  --font-numeral: var(--font-numeral);
+  --font-serif: var(--font-serif);
+}
+
+* {
+  border-color: var(--border);
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-ui), system-ui, sans-serif;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.masthead {
+  font-family: var(--font-display), sans-serif;
+  letter-spacing: 0.02em;
+}
+
+:root[data-theme="dark"] .rink-label,
+[data-theme="dark"] .rink-label {
+  font-family: var(--font-numeral), sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.hairline {
+  border-top: 1px dashed var(--border);
+}
+
+.day-heading {
+  font-family: var(--font-serif), serif;
+}
+
+:root[data-theme="dark"] .day-heading,
+[data-theme="dark"] .day-heading {
+  font-family: var(--font-numeral), sans-serif;
+  text-transform: uppercase;
+}
+
+.status-dot {
+  box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+}
+
+[data-theme="dark"] .status-dot-glow {
+  box-shadow: 0 0 8px 2px currentColor;
+}
