@@ -14,13 +14,16 @@ export function EatClient({
   initialRequests,
   members,
   currentMemberId,
+  yomTovDates,
 }: {
   weekStartIso: string;
   initialMenu: DinnerMenuRow[];
   initialRequests: DinnerRequest[];
   members: MemberLite[];
   currentMemberId: string | null;
+  yomTovDates: string[];
 }) {
+  const yomTovSet = new Set(yomTovDates);
   const weekStart = new Date(weekStartIso);
   const [menu, setMenu] = useState(initialMenu);
   const [requests, setRequests] = useState(initialRequests);
@@ -110,6 +113,7 @@ export function EatClient({
           const dateStr = ymd(day);
           const row = menu.find((m) => m.date === dateStr);
           const isShabbat = day.getDay() === 5;
+          const isYomTov = row?.isYomTov || yomTovSet.has(dateStr);
           const editing = editingDate === dateStr;
 
           return (
@@ -122,9 +126,9 @@ export function EatClient({
                 <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
                   {WEEKDAY_LABELS[day.getDay()]} {MONTH_LABELS[day.getMonth()]} {day.getDate()}
                 </p>
-                {(isShabbat || row?.isYomTov) && (
+                {(isShabbat || isYomTov) && (
                   <p className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--accent)" }}>
-                    <Flame size={11} /> {row?.isYomTov ? "Yom Tov" : "Shabbat"}
+                    <Flame size={11} /> {isYomTov ? "Yom Tov" : "Shabbat"}
                   </p>
                 )}
               </div>

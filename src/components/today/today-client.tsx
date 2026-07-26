@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Utensils } from "lucide-react";
+import { Plus, Utensils, Flame } from "lucide-react";
 import { EventRow } from "@/components/events/event-row";
 import { EventModal } from "@/components/events/event-modal";
 import type { EventRecord, MemberLite } from "@/components/events/types";
@@ -24,6 +24,8 @@ function rideTimestamp(date: string, time: string): number {
 
 export function TodayClient({
   heading,
+  hebrewDate,
+  candleStrip,
   initialEvents,
   initialRides,
   members,
@@ -31,6 +33,8 @@ export function TodayClient({
   dinner,
 }: {
   heading: string;
+  hebrewDate: string | null;
+  candleStrip: { candleLighting: string | null; parasha: string | null; yomTovToday: string | null } | null;
   initialEvents: EventRecord[];
   initialRides: RideRecord[];
   members: MemberLite[];
@@ -86,7 +90,14 @@ export function TodayClient({
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 py-5">
       <div className="flex items-center justify-between">
-        <h1 className="day-heading text-3xl">{heading}</h1>
+        <div>
+          <h1 className="day-heading text-3xl">{heading}</h1>
+          {hebrewDate && (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              {hebrewDate}
+            </p>
+          )}
+        </div>
         <button
           onClick={() => setModalEvent("new")}
           className="flex items-center gap-1 rounded-full px-3 py-2 text-sm font-semibold"
@@ -95,6 +106,31 @@ export function TodayClient({
           <Plus size={16} /> Add
         </button>
       </div>
+
+      {candleStrip && (
+        <div
+          className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--accent)", background: "var(--bg-panel)" }}
+        >
+          <Flame size={16} style={{ color: "var(--accent)" }} />
+          <span>
+            {candleStrip.yomTovToday ? (
+              <strong>{candleStrip.yomTovToday}</strong>
+            ) : (
+              <>
+                {candleStrip.parasha && <strong>{candleStrip.parasha}</strong>}
+                {candleStrip.candleLighting && (
+                  <>
+                    {" "}
+                    · Candle lighting{" "}
+                    {new Date(candleStrip.candleLighting).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                  </>
+                )}
+              </>
+            )}
+          </span>
+        </div>
+      )}
 
       <QuickAdd onApplied={() => router.refresh()} />
 

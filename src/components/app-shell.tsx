@@ -3,6 +3,7 @@
 import { usePathname } from "next/navigation";
 import { Header } from "./header";
 import { BottomNav } from "./bottom-nav";
+import { SwRegister } from "./sw-register";
 
 export type CurrentMember = {
   id: string;
@@ -27,6 +28,7 @@ export function AppShell({
 
   return (
     <>
+      <SwRegister />
       <Header member={member} />
       <main className="flex-1 flex flex-col pb-20">{children}</main>
       <BottomNav />

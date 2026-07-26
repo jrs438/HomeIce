@@ -10,6 +10,8 @@ export type RideRecord = {
   driverType: "member" | "external" | "carpool" | "unassigned";
   driverId: string | null;
   confirmed: boolean;
+  icsUid?: string | null;
+  icsSequence?: number;
 };
 
 export type RideRuleRecord = {

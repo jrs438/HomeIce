@@ -63,5 +63,21 @@ and kids get full read/write access to the app itself.
 
 ## Scheduled jobs (cron-job.org)
 
-All `/api/cron/*` routes require header `x-cron-secret: $CRON_SECRET`. See
-`docs/shortcut-setup.md` for the Apple Shortcut capture recipe.
+All `/api/cron/*` routes require header `x-cron-secret: $CRON_SECRET`. Set these
+up as free cron-job.org jobs pointed at your deployment:
+
+| Route | Suggested schedule | Purpose |
+|---|---|---|
+| `POST /api/cron/gmail-poll` | every 5 min | Poll the family Gmail inbox for allowlisted senders and run them through the capture pipeline |
+| `POST /api/cron/ics-poll` | hourly | Poll all active ICS feeds (Settings → Calendar feeds), upsert events, flag rides whose linked event time changed |
+| `POST /api/cron/digest` | Sunday 6pm (or whatever Settings → Digest day/time says) | Email the weekly digest to parents; the route itself also checks the day matches before sending |
+| `POST /api/cron/morning-summary` | daily 7am | Push notification with today's run-of-show to parents + sitter |
+| `POST /api/cron/cleanup` | daily | Delete checked-off grocery items older than 48h and expired undo-log rows |
+
+Gmail polling and the digest/ride-invite emails degrade gracefully (return
+`{configured: false}` / skip sending) until `GMAIL_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN`
+(inbound) and a verified `GMAIL_USER`/`GMAIL_APP_PASSWORD` (outbound) are in
+place — expected while the family Gmail account is pending Google's review.
+Push notifications no-op until `VAPID_PUBLIC_KEY`/`VAPID_PRIVATE_KEY` are set.
+
+See `docs/shortcut-setup.md` for the Apple Shortcut capture recipe.

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { LogOut, Plus, Trash2, Pencil } from "lucide-react";
 import type { SettingsKey } from "@/lib/settings";
 import { ExternalDriversSection } from "./external-drivers-section";
+import { PushToggle } from "./push-toggle";
+import { IcsFeedsSection } from "./ics-feeds-section";
 
 type Member = {
   id: string;
@@ -25,6 +27,8 @@ type ExternalDriver = {
   notes: string | null;
 };
 
+type IcsFeed = { id: string; url: string; label: string; kind: "events" | "busy"; active: boolean };
+
 const COLOR_PRESETS = [
   "#2563EB",
   "#DB2777",
@@ -39,12 +43,14 @@ const COLOR_PRESETS = [
 export function SettingsClient({
   initialMembers,
   initialExternalDrivers,
+  initialIcsFeeds,
   initialSettings,
   isAdmin,
   currentMemberId,
 }: {
   initialMembers: Member[];
   initialExternalDrivers: ExternalDriver[];
+  initialIcsFeeds: IcsFeed[];
   initialSettings: Record<SettingsKey, string>;
   isAdmin: boolean;
   currentMemberId: string | null;
@@ -192,6 +198,8 @@ export function SettingsClient({
 
       <ExternalDriversSection initial={initialExternalDrivers} isAdmin={isAdmin} />
 
+      <IcsFeedsSection initial={initialIcsFeeds} isAdmin={isAdmin} />
+
       {isAdmin && (
         <section className="flex flex-col gap-3">
           <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
@@ -239,6 +247,8 @@ export function SettingsClient({
           </div>
         </section>
       )}
+
+      <PushToggle />
 
       <button
         onClick={logout}
