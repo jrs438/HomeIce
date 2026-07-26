@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { Header } from "./header";
 import { BottomNav } from "./bottom-nav";
 import { SwRegister } from "./sw-register";
+import { InstallPrompt } from "./install-prompt";
 
 export type CurrentMember = {
   id: string;
@@ -29,6 +30,7 @@ export function AppShell({
   return (
     <>
       <SwRegister />
+      <InstallPrompt />
       <Header member={member} />
       <main className="flex-1 flex flex-col pb-20">{children}</main>
       <BottomNav />

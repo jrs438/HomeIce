@@ -1,9 +1,24 @@
-self.addEventListener("install", () => {
+const OFFLINE_CACHE = "homeice-offline-v1";
+const OFFLINE_URL = "/offline.html";
+
+self.addEventListener("install", (event) => {
+  event.waitUntil(
+    caches.open(OFFLINE_CACHE).then((cache) => cache.addAll([OFFLINE_URL, "/icons/icon-192.png"]))
+  );
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
+});
+
+// Network-first for page navigations, falling back to a cached offline
+// shell so the app never dead-ends on the browser's default error page.
+self.addEventListener("fetch", (event) => {
+  if (event.request.mode !== "navigate") return;
+  event.respondWith(
+    fetch(event.request).catch(() => caches.match(OFFLINE_URL))
+  );
 });
 
 self.addEventListener("push", (event) => {
