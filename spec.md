@@ -1,4 +1,28 @@
-# HomeIce — Family Operations App — Build Spec
+## Family constants — authoritative, use these everywhere
+
+- App display name: HomeIce
+- Dad: Jeremy
+  - emails (allowlist): jeremy.spier@gmail.com, jeremy.spier@parthenon.ey.com
+  - ride invites → jeremy.spier@parthenon.ey.com
+- Mom: Shira
+  - emails (allowlist): shira1023@gmail.com, slspier@kpmg.com
+  - ride invites → slspier@kpmg.com
+- Digest recipients: jeremy.spier@gmail.com, shira1023@gmail.com
+- Sitter: Sitter (TBD)
+- Kids: Jonah (16, Frisch, hockey), Ava (13, Yavneh, dance),
+  Emma (6, Yavneh, hockey + gymnastics)
+- External drivers to seed: Grandma, Opa, Grandi, Bardavid, Brown (emails can be added later)
+- Grocery store tabs: Costco, BJ's, ShopRite, Cedar Market, Grand, Ouris
+- Family Gmail: spierapp@gmail.com (sender allowlist = Jeremy + Shira above)
+- Candle lighting zip: 07652
+- Digest recipients: Jeremy + Shira
+-Members have multiple email addresses: `emails[]` (all accepted as
+capture senders) and `inviteEmail` (single target for ride calendar
+invites). Both editable per member in Settings. Sitter is seeded as
+"Sitter (TBD)" with no email — assignable to rides now, renameable
+in Settings once hired. Other riders and kids can get emails added later if necessary.
+
+- # HomeIce — Family Operations App — Build Spec
 
 You are building **HomeIce** (working name), a private family organizer PWA for one family. Build it production-quality but pragmatic: this serves 6 people, not 6 million. Optimize for the mother of the family being able to run the whole week through natural-language input without filling out forms.
 
