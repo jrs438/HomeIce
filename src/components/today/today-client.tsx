@@ -5,20 +5,40 @@ import { Plus, Utensils } from "lucide-react";
 import { EventRow } from "@/components/events/event-row";
 import { EventModal } from "@/components/events/event-modal";
 import type { EventRecord, MemberLite } from "@/components/events/types";
+import { RideRow } from "@/components/rides/ride-row";
+import { DriverPicker } from "@/components/rides/driver-picker";
+import type { ExternalDriverRecord, RideRecord } from "@/components/rides/types";
+
+type TimelineItem =
+  | { kind: "event"; time: number; event: EventRecord }
+  | { kind: "ride"; time: number; ride: RideRecord };
+
+function rideTimestamp(date: string, time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  const d = new Date(`${date}T00:00:00`);
+  d.setHours(h, m, 0, 0);
+  return d.getTime();
+}
 
 export function TodayClient({
   heading,
   initialEvents,
+  initialRides,
   members,
+  externalDrivers,
   dinner,
 }: {
   heading: string;
   initialEvents: EventRecord[];
+  initialRides: RideRecord[];
   members: MemberLite[];
+  externalDrivers: ExternalDriverRecord[];
   dinner: { meal: string; isYomTov: boolean } | null;
 }) {
   const [eventList, setEventList] = useState(initialEvents);
+  const [ridesList, setRidesList] = useState(initialRides);
   const [modalEvent, setModalEvent] = useState<EventRecord | "new" | null>(null);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
 
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
@@ -26,17 +46,38 @@ export function TodayClient({
     return () => clearInterval(id);
   }, []);
 
-  const nextIndex = eventList.findIndex((e) => {
-    const end = e.end ? new Date(e.end).getTime() : new Date(e.start).getTime();
-    return e.status !== "cancelled" && end >= now;
+  const timeline: TimelineItem[] = [
+    ...eventList.map((event): TimelineItem => ({ kind: "event", time: new Date(event.start).getTime(), event })),
+    ...ridesList.map((ride): TimelineItem => ({ kind: "ride", time: rideTimestamp(ride.date, ride.time), ride })),
+  ].sort((a, b) => a.time - b.time);
+
+  const nextIndex = timeline.findIndex((item) => {
+    if (item.kind === "event") {
+      const end = item.event.end ? new Date(item.event.end).getTime() : new Date(item.event.start).getTime();
+      return item.event.status !== "cancelled" && end >= now;
+    }
+    return item.time >= now;
   });
 
-  function upsert(updated: EventRecord) {
+  function upsertEvent(updated: EventRecord) {
     setEventList((prev) => {
       const exists = prev.some((e) => e.id === updated.id);
-      const next = exists ? prev.map((e) => (e.id === updated.id ? updated : e)) : [...prev, updated];
-      return next.sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
+      return exists ? prev.map((e) => (e.id === updated.id ? updated : e)) : [...prev, updated];
     });
+  }
+
+  function upsertRide(updated: RideRecord) {
+    setRidesList((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+  }
+
+  async function assign(rideId: string, driverType: RideRecord["driverType"], driverId: string | null) {
+    const res = await fetch(`/api/rides/${rideId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ driverType, driverId, confirmed: driverType !== "unassigned" }),
+    });
+    if (res.ok) upsertRide(await res.json());
+    setAssigningId(null);
   }
 
   return (
@@ -66,20 +107,30 @@ export function TodayClient({
       )}
 
       <div className="flex flex-col gap-2">
-        {eventList.length === 0 && (
+        {timeline.length === 0 && (
           <p className="py-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
             Nothing on the run-of-show yet today.
           </p>
         )}
-        {eventList.map((event, i) => (
-          <EventRow
-            key={event.id}
-            event={event}
-            members={members}
-            next={i === nextIndex}
-            onClick={() => setModalEvent(event)}
-          />
-        ))}
+        {timeline.map((item, i) =>
+          item.kind === "event" ? (
+            <EventRow
+              key={`e-${item.event.id}`}
+              event={item.event}
+              members={members}
+              next={i === nextIndex}
+              onClick={() => setModalEvent(item.event)}
+            />
+          ) : (
+            <RideRow
+              key={`r-${item.ride.id}`}
+              ride={item.ride}
+              members={members}
+              externalDrivers={externalDrivers}
+              onAssign={() => setAssigningId(item.ride.id)}
+            />
+          )
+        )}
       </div>
 
       {modalEvent && (
@@ -87,7 +138,16 @@ export function TodayClient({
           initial={modalEvent === "new" ? undefined : modalEvent}
           members={members}
           onClose={() => setModalEvent(null)}
-          onSaved={upsert}
+          onSaved={upsertEvent}
+        />
+      )}
+
+      {assigningId && (
+        <DriverPicker
+          members={members}
+          externalDrivers={externalDrivers}
+          onClose={() => setAssigningId(null)}
+          onSelect={(driverType, driverId) => assign(assigningId, driverType, driverId)}
         />
       )}
     </div>

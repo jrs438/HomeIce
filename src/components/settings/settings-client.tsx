@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { LogOut, Plus, Trash2, Pencil } from "lucide-react";
 import type { SettingsKey } from "@/lib/settings";
+import { ExternalDriversSection } from "./external-drivers-section";
 
 type Member = {
   id: string;
@@ -13,6 +14,15 @@ type Member = {
   isAdmin: boolean;
   emails: string[];
   inviteEmail: string | null;
+};
+
+type ExternalDriver = {
+  id: string;
+  name: string;
+  label: string;
+  phone: string | null;
+  email: string | null;
+  notes: string | null;
 };
 
 const COLOR_PRESETS = [
@@ -28,11 +38,13 @@ const COLOR_PRESETS = [
 
 export function SettingsClient({
   initialMembers,
+  initialExternalDrivers,
   initialSettings,
   isAdmin,
   currentMemberId,
 }: {
   initialMembers: Member[];
+  initialExternalDrivers: ExternalDriver[];
   initialSettings: Record<SettingsKey, string>;
   isAdmin: boolean;
   currentMemberId: string | null;
@@ -177,6 +189,8 @@ export function SettingsClient({
           />
         )}
       </section>
+
+      <ExternalDriversSection initial={initialExternalDrivers} isAdmin={isAdmin} />
 
       {isAdmin && (
         <section className="flex flex-col gap-3">
