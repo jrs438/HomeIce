@@ -1,3 +1,6 @@
+import { zonedTimeToUtc } from "./dates";
+import { FAMILY_TIMEZONE } from "./family-constants";
+
 export type ParsedIcsEvent = {
   uid: string;
   summary: string;
@@ -36,7 +39,8 @@ function parseDateValue(propLine: string, value: string): { date: Date; allDay: 
   if (z === "Z") {
     return { date: new Date(Date.UTC(+y, +mo - 1, +d, +h, +mi, +s)), allDay: false };
   }
-  return { date: new Date(+y, +mo - 1, +d, +h, +mi, +s), allDay: false };
+  const iso = `${y}-${mo}-${d}T${h}:${mi}:${s}`;
+  return { date: zonedTimeToUtc(iso, FAMILY_TIMEZONE), allDay: false };
 }
 
 export function parseIcs(text: string): ParsedIcsEvent[] {

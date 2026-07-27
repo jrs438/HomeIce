@@ -3,3 +3,5 @@ export const FAMILY_KID_CONTEXT = `- Jonah, 16, 10th grade, The Frisch School (P
 - Emma, 6, 1st grade, Yavneh Academy; hockey (mini-mites) + gymnastics`;
 
 export const CANDLE_LIGHTING_ZIP = "07652";
+
+export const FAMILY_TIMEZONE = "America/New_York";

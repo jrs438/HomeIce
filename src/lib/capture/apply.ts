@@ -2,6 +2,8 @@ import { db } from "@/db";
 import { events, rides, rideRules, groceryItems, chores, dinnerRequests, dinnerMenu, undoLog } from "@/db/schema";
 import { eq, and, ilike } from "drizzle-orm";
 import { isoWeekKey } from "@/lib/week";
+import { parseWallClockOrUtc } from "@/lib/dates";
+import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import type { CaptureAction } from "./schema";
 
 type Member = { id: string; name: string; role: string };
@@ -71,8 +73,8 @@ export async function applyAction(
         .insert(events)
         .values({
           title: action.title,
-          start: new Date(action.start),
-          end: action.end ? new Date(action.end) : null,
+          start: action.allDay ? new Date(action.start) : parseWallClockOrUtc(action.start, FAMILY_TIMEZONE),
+          end: action.end ? (action.allDay ? new Date(action.end) : parseWallClockOrUtc(action.end, FAMILY_TIMEZONE)) : null,
           allDay: !!action.allDay,
           location: action.location || null,
           kidIds: resolveKidIds(action.kidNames, members),
@@ -111,8 +113,16 @@ export async function applyAction(
       await db
         .update(events)
         .set({
-          start: action.start ? new Date(action.start) : match.start,
-          end: action.end ? new Date(action.end) : match.end,
+          start: action.start
+            ? match.allDay
+              ? new Date(action.start)
+              : parseWallClockOrUtc(action.start, FAMILY_TIMEZONE)
+            : match.start,
+          end: action.end
+            ? match.allDay
+              ? new Date(action.end)
+              : parseWallClockOrUtc(action.end, FAMILY_TIMEZONE)
+            : match.end,
           location: action.location ?? match.location,
           notes: action.notes ?? match.notes,
           updatedAt: new Date(),

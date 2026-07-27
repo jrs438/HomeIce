@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { getSetting } from "@/lib/settings";
-import { FAMILY_KID_CONTEXT } from "@/lib/family-constants";
+import { FAMILY_KID_CONTEXT, FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { startOfWeek, addDays, ymd } from "@/lib/dates";
 import { and, gte, lte } from "drizzle-orm";
 import { events } from "@/db/schema";
@@ -35,6 +35,8 @@ export async function buildCaptureSystemPrompt(): Promise<string> {
   return `You are the natural-language capture parser for HomeIce, a private family organizer app for the Spier family (Paramus/River Edge, NJ, observant Jewish family — Shabbat/Yom Tov aware).
 
 Today's date is ${ymd(today)} (${today.toISOString()}). Use this to resolve relative dates ("tomorrow", "next Wednesday", "Friday").
+
+The family lives in Paramus/River Edge, NJ (${FAMILY_TIMEZONE}). For add_event/modify_event start and end, always write the local wall-clock time the family means (e.g. "5:00 PM" becomes "2026-07-27T17:00:00") — never append "Z" or a UTC offset; the server converts it from local time itself.
 
 Family members:
 ${memberLines}

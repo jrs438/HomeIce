@@ -37,6 +37,55 @@ export function ymd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/**
+ * Interprets "YYYY-MM-DDTHH:mm[:ss]" as wall-clock time in `timeZone` (DST-aware)
+ * and returns the corresponding instant. Needed because the server runtime's own
+ * local timezone (UTC on Vercel) is not the family's timezone, so a naive
+ * `new Date("2026-07-27T17:00:00")` on the server does not mean 5pm Eastern.
+ */
+export function zonedTimeToUtc(dateTimeStr: string, timeZone: string): Date {
+  const [datePart, timePart = "00:00:00"] = dateTimeStr.split("T");
+  const [year, month, day] = datePart.split("-").map(Number);
+  const [hour, minute, second] = timePart.split(":").map((n) => Number(n) || 0);
+
+  const guessUtcMs = Date.UTC(year, month - 1, day, hour, minute, second || 0);
+
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(new Date(guessUtcMs))) parts[p.type] = p.value;
+  const renderedAsUtcMs = Date.UTC(
+    Number(parts.year),
+    Number(parts.month) - 1,
+    Number(parts.day),
+    Number(parts.hour),
+    Number(parts.minute),
+    Number(parts.second)
+  );
+  const driftMs = renderedAsUtcMs - guessUtcMs;
+  return new Date(guessUtcMs - driftMs);
+}
+
+/**
+ * Parses a datetime string that may or may not carry a UTC/offset designator.
+ * If it does (trailing "Z" or "+hh:mm"/"-hh:mm"), it's treated as an absolute
+ * instant as usual. Otherwise it's treated as wall-clock time in `timeZone`.
+ */
+export function parseWallClockOrUtc(dateTimeStr: string, timeZone: string): Date {
+  if (/Z$|[+-]\d{2}:\d{2}$/.test(dateTimeStr)) {
+    return new Date(dateTimeStr);
+  }
+  return zonedTimeToUtc(dateTimeStr, timeZone);
+}
+
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const MONTH_LABELS = [
   "January",
