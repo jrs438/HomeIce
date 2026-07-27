@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Mic, Camera, Send, Undo2, X } from "lucide-react";
 
 type Outcome = { summary: string; applied: boolean; undoId?: string; undone?: boolean };
@@ -13,8 +13,15 @@ export function QuickAdd({ onApplied }: { onApplied?: () => void }) {
   const [note, setNote] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
-  const speechSupported =
-    typeof window !== "undefined" && ("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
+  // Start false to match the server's render (no `window` there), then
+  // correct after mount — avoids a hydration mismatch on the mic button.
+  const [speechSupported, setSpeechSupported] = useState(false);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      setSpeechSupported("webkitSpeechRecognition" in window || "SpeechRecognition" in window);
+    });
+  }, []);
 
   async function submit(payload: { type: "text" | "image"; content: string }) {
     setBusy(true);
