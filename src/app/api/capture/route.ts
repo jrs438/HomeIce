@@ -4,26 +4,11 @@ import { runCapture } from "@/lib/capture/run";
 
 export async function POST(req: NextRequest) {
   const secret = req.headers.get("x-capture-secret");
-  const expected = process.env.CAPTURE_SECRET;
-  const secretOk = !!secret && secret === expected;
+  const secretOk = !!secret && secret === process.env.CAPTURE_SECRET;
 
   const member = await getCurrentMember();
   if (!secretOk && !member) {
-    // TEMPORARY debug info to diagnose a secret mismatch — no secret values are
-    // exposed, only lengths/whitespace/case comparisons. Remove once resolved.
-    return NextResponse.json(
-      {
-        error: "Unauthorized",
-        debug: {
-          headerPresent: secret !== null,
-          receivedLength: secret?.length ?? 0,
-          expectedLength: expected?.length ?? 0,
-          matchesTrimmed: !!secret && !!expected && secret.trim() === expected.trim(),
-          matchesCaseInsensitive: !!secret && !!expected && secret.toLowerCase() === expected.toLowerCase(),
-        },
-      },
-      { status: 401 }
-    );
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const body = await req.json().catch(() => null);
