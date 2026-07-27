@@ -7,6 +7,7 @@ import type { SettingsKey } from "@/lib/settings";
 import { ExternalDriversSection } from "./external-drivers-section";
 import { PushToggle } from "./push-toggle";
 import { IcsFeedsSection } from "./ics-feeds-section";
+import { ShareButton } from "./share-button";
 
 type Member = {
   id: string;
@@ -247,6 +248,8 @@ export function SettingsClient({
           </div>
         </section>
       )}
+
+      <ShareButton familyName={settingsValues.family_name} />
 
       <PushToggle />
 
