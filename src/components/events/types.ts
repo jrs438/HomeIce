@@ -6,7 +6,7 @@ export type EventRecord = {
   allDay: boolean;
   location: string | null;
   kidIds: string[];
-  source: "manual" | "ics" | "email" | "capture";
+  source: "manual" | "ics" | "email" | "capture" | "recurring";
   sourceRef: string | null;
   icsUid: string | null;
   status: "proposed" | "confirmed" | "cancelled";

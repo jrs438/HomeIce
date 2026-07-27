@@ -18,6 +18,8 @@ export type RideRuleRecord = {
   id: string;
   label: string;
   dayOfWeek: number;
+  intervalWeeks: number;
+  anchorDate: string | null;
   kind: RideRecord["kind"];
   kidIds: string[];
   from: string;
@@ -25,6 +27,21 @@ export type RideRuleRecord = {
   time: string | null;
   driverType: RideRecord["driverType"];
   driverId: string | null;
+  active: boolean;
+  eventRuleId: string | null;
+};
+
+export type EventRuleRecord = {
+  id: string;
+  title: string;
+  dayOfWeek: number;
+  intervalWeeks: number;
+  anchorDate: string;
+  startTime: string;
+  endTime: string | null;
+  location: string | null;
+  kidIds: string[];
+  notes: string | null;
   active: boolean;
 };
 

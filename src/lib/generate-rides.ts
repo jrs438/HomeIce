@@ -1,6 +1,6 @@
 import { db } from "@/db";
-import { rides, rideRules } from "@/db/schema";
-import { addDays, ymd } from "@/lib/dates";
+import { rides, rideRules, eventExceptions } from "@/db/schema";
+import { addDays, ymd, isOnRecurrenceCycle } from "@/lib/dates";
 import { and, eq } from "drizzle-orm";
 
 export async function generateRidesForWeek(weekStart: Date) {
@@ -8,17 +8,30 @@ export async function generateRidesForWeek(weekStart: Date) {
 
   let created = 0;
   let skippedNoTime = 0;
+  let skippedException = 0;
 
   for (let i = 0; i < 7; i++) {
     const day = addDays(weekStart, i);
     const dow = day.getDay();
     const date = ymd(day);
-    const rulesForDay = activeRules.filter((r) => r.dayOfWeek === dow);
+    const rulesForDay = activeRules.filter(
+      (r) => r.dayOfWeek === dow && isOnRecurrenceCycle(day, r.intervalWeeks, r.anchorDate)
+    );
 
     for (const rule of rulesForDay) {
       if (!rule.time) {
         skippedNoTime++;
         continue;
+      }
+
+      if (rule.eventRuleId) {
+        const exception = await db.query.eventExceptions.findFirst({
+          where: and(eq(eventExceptions.eventRuleId, rule.eventRuleId), eq(eventExceptions.date, date)),
+        });
+        if (exception) {
+          skippedException++;
+          continue;
+        }
       }
 
       const existing = await db.query.rides.findFirst({
@@ -41,5 +54,5 @@ export async function generateRidesForWeek(weekStart: Date) {
     }
   }
 
-  return { created, skippedNoTime };
+  return { created, skippedNoTime, skippedException };
 }

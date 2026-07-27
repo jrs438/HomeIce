@@ -1,15 +1,22 @@
 import { db } from "@/db";
-import { events, rides, rideRules, groceryItems, chores, dinnerRequests, dinnerMenu, undoLog } from "@/db/schema";
+import { events, rides, rideRules, eventRules, groceryItems, chores, dinnerRequests, dinnerMenu, undoLog } from "@/db/schema";
 import { eq, and, ilike } from "drizzle-orm";
 import { isoWeekKey } from "@/lib/week";
-import { parseWallClockOrUtc } from "@/lib/dates";
+import { parseWallClockOrUtc, addDays, startOfWeek, ymd, WEEKDAY_LABELS } from "@/lib/dates";
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
+import { generateEventsForWeek } from "@/lib/generate-events";
 import type { CaptureAction } from "./schema";
 
 type Member = { id: string; name: string; role: string };
 type ExternalDriver = { id: string; name: string; label: string };
 
 const UNDO_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function nextOccurrence(dayOfWeek: number): string {
+  const today = new Date();
+  const diff = (dayOfWeek - today.getDay() + 7) % 7;
+  return ymd(addDays(today, diff));
+}
 
 function resolveKidIds(names: string[] | undefined, members: Member[]): string[] {
   if (!names) return [];
@@ -88,6 +95,39 @@ export async function applyAction(
         eventId: created.id,
       });
       return { action, applied: true, instant: false, summary: `Added event "${created.title}"`, undoId };
+    }
+
+    case "add_recurring_event": {
+      if (!action.title || action.dayOfWeek === undefined || !action.startTime) {
+        return { action, applied: false, instant: false, summary: "Missing title/day/time for recurring event" };
+      }
+      const [created] = await db
+        .insert(eventRules)
+        .values({
+          title: action.title,
+          dayOfWeek: action.dayOfWeek,
+          intervalWeeks: action.intervalWeeks ?? 1,
+          anchorDate: nextOccurrence(action.dayOfWeek),
+          startTime: action.startTime,
+          endTime: action.endTime || null,
+          location: action.location || null,
+          kidIds: resolveKidIds(action.kidNames, members),
+          notes: action.notes || null,
+        })
+        .returning();
+
+      const weekStart = startOfWeek(new Date());
+      for (let w = 0; w < 4; w++) {
+        await generateEventsForWeek(addDays(weekStart, w * 7));
+      }
+
+      const undoId = await recordUndo(null, `Added recurring event "${created.title}"`, {
+        kind: "delete_event_rule",
+        eventRuleId: created.id,
+      });
+      const cadence =
+        created.intervalWeeks > 1 ? `every ${created.intervalWeeks} weeks on ${WEEKDAY_LABELS[created.dayOfWeek]}` : `every ${WEEKDAY_LABELS[created.dayOfWeek]}`;
+      return { action, applied: true, instant: false, summary: `Added "${created.title}" (${cadence})`, undoId };
     }
 
     case "cancel_event": {
@@ -264,6 +304,9 @@ export async function applyUndo(inverseAction: Record<string, unknown>) {
   switch (inverseAction.kind) {
     case "delete_event":
       await db.delete(events).where(eq(events.id, inverseAction.eventId as string));
+      return;
+    case "delete_event_rule":
+      await db.delete(eventRules).where(eq(eventRules.id, inverseAction.eventRuleId as string));
       return;
     case "set_event_status":
       await db

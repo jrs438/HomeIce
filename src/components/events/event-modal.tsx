@@ -172,6 +172,21 @@ export function EventModal({
     if (!initial) return;
     setSaving(true);
     try {
+      if (initial.source === "recurring" && initial.sourceRef) {
+        // The exceptions endpoint records the skip AND cancels this instance AND
+        // cleans up any linked rides (both per-instance and rule-cascade ones) —
+        // one call handles the whole "skip this occurrence" flow server-side.
+        await fetch(`/api/event-rules/${initial.sourceRef}/exceptions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: ymd(new Date(initial.start)) }),
+        });
+        onSaved({ ...initial, status: "cancelled" });
+        onDeleted?.(initial.id);
+        onClose();
+        return;
+      }
+
       const res = await fetch(`/api/events/${initial.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
@@ -191,6 +206,12 @@ export function EventModal({
   return (
     <Modal title={initial ? "Edit event" : "Add event"} onClose={onClose}>
       <div className="flex flex-col gap-3">
+        {initial?.source === "recurring" && (
+          <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Part of a recurring series — edits here only affect this occurrence.
+          </p>
+        )}
+
         <input
           autoFocus
           value={title}
@@ -384,7 +405,7 @@ export function EventModal({
               className="rounded-md border px-3 py-2 text-sm font-medium"
               style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
             >
-              Cancel event
+              {initial.source === "recurring" ? "Skip this occurrence" : "Cancel event"}
             </button>
           )}
         </div>

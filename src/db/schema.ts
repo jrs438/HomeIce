@@ -9,6 +9,7 @@ import {
   integer,
   date,
   time,
+  type AnyPgColumn,
 } from "drizzle-orm/pg-core";
 
 const id = () =>
@@ -18,7 +19,7 @@ const id = () =>
 
 // ---------- enums ----------
 export const memberRoleEnum = pgEnum("member_role", ["parent", "kid", "sitter"]);
-export const eventSourceEnum = pgEnum("event_source", ["manual", "ics", "email", "capture"]);
+export const eventSourceEnum = pgEnum("event_source", ["manual", "ics", "email", "capture", "recurring"]);
 export const eventStatusEnum = pgEnum("event_status", ["proposed", "confirmed", "cancelled"]);
 export const rideKindEnum = pgEnum("ride_kind", [
   "activity_dropoff",
@@ -97,6 +98,8 @@ export const rideRules = pgTable("ride_rules", {
   id: id(),
   label: text("label").notNull(),
   dayOfWeek: integer("day_of_week").notNull(), // 0=Sun..6=Sat
+  intervalWeeks: integer("interval_weeks").notNull().default(1),
+  anchorDate: date("anchor_date"), // reference week for intervalWeeks > 1; ignored when interval is 1
   kind: rideKindEnum("kind").notNull(),
   kidIds: text("kid_ids").array().notNull().default([]),
   from: text("from").notNull(),
@@ -105,6 +108,39 @@ export const rideRules = pgTable("ride_rules", {
   driverType: driverTypeEnum("driver_type").notNull().default("unassigned"),
   driverId: text("driver_id"),
   active: boolean("active").notNull().default(true),
+  // Set when this rule was auto-created from a recurring event's "needs a ride"
+  // config, so a skipped event occurrence (event_exceptions) also skips this ride.
+  eventRuleId: text("event_rule_id").references(
+    (): AnyPgColumn => eventRules.id,
+    { onDelete: "cascade" }
+  ),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const eventRules = pgTable("event_rules", {
+  id: id(),
+  title: text("title").notNull(),
+  dayOfWeek: integer("day_of_week").notNull(), // 0=Sun..6=Sat
+  intervalWeeks: integer("interval_weeks").notNull().default(1),
+  anchorDate: date("anchor_date").notNull(), // date of the first occurrence
+  startTime: time("start_time").notNull(),
+  endTime: time("end_time"),
+  location: text("location"),
+  kidIds: text("kid_ids").array().notNull().default([]),
+  notes: text("notes"),
+  active: boolean("active").notNull().default(true),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+// A recorded "skip this date" for a recurring event series (and, by extension,
+// any ride_rule linked to it via eventRuleId). Presence of a row = skipped;
+// there's nothing to record for a plain edit of an already-materialized instance.
+export const eventExceptions = pgTable("event_exceptions", {
+  id: id(),
+  eventRuleId: text("event_rule_id")
+    .notNull()
+    .references(() => eventRules.id, { onDelete: "cascade" }),
+  date: date("date").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
 });
 

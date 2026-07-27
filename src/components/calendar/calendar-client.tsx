@@ -1,10 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Repeat } from "lucide-react";
 import { EventRow } from "@/components/events/event-row";
 import { EventModal } from "@/components/events/event-modal";
+import { EventRulesEditor } from "./event-rules-editor";
 import type { EventRecord, MemberLite } from "@/components/events/types";
+import type { EventRuleRecord } from "@/components/rides/types";
 import { addDays, startOfDay, startOfWeek, isSameDay, ymd, WEEKDAY_LABELS, MONTH_LABELS } from "@/lib/dates";
 
 type ViewMode = "month" | "week" | "day";
@@ -15,6 +17,20 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
   const [eventsList, setEventsList] = useState<EventRecord[]>([]);
   const [modalEvent, setModalEvent] = useState<EventRecord | "new" | null>(null);
   const [loading, setLoading] = useState(true);
+  const [eventRules, setEventRules] = useState<EventRuleRecord[]>([]);
+  const [showRulesEditor, setShowRulesEditor] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/event-rules")
+      .then((r) => r.json())
+      .then((data) => {
+        if (!cancelled) setEventRules(data);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const { rangeStart, gridStart, gridEnd } = useMemo(() => {
     if (view === "day") {
@@ -80,20 +96,30 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-5">
       <div className="flex items-center justify-between">
         <h1 className="masthead text-xl">CALENDAR</h1>
-        <div className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: "var(--border)" }}>
-          {(["month", "week", "day"] as ViewMode[]).map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v)}
-              className="rounded-full px-3 py-1 text-xs font-semibold capitalize"
-              style={{
-                background: view === v ? "var(--accent)" : "transparent",
-                color: view === v ? "var(--accent-text)" : "var(--text-muted)",
-              }}
-            >
-              {v}
-            </button>
-          ))}
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowRulesEditor(true)}
+            className="rounded-full border p-1.5"
+            style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
+            aria-label="Recurring events"
+          >
+            <Repeat size={16} />
+          </button>
+          <div className="flex gap-1 rounded-full border p-0.5" style={{ borderColor: "var(--border)" }}>
+            {(["month", "week", "day"] as ViewMode[]).map((v) => (
+              <button
+                key={v}
+                onClick={() => setView(v)}
+                className="rounded-full px-3 py-1 text-xs font-semibold capitalize"
+                style={{
+                  background: view === v ? "var(--accent)" : "transparent",
+                  color: view === v ? "var(--accent-text)" : "var(--text-muted)",
+                }}
+              >
+                {v}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -172,6 +198,20 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
           defaultDate={anchor}
           onClose={() => setModalEvent(null)}
           onSaved={upsert}
+        />
+      )}
+
+      {showRulesEditor && (
+        <EventRulesEditor
+          rules={eventRules}
+          members={members}
+          onClose={() => {
+            setShowRulesEditor(false);
+            fetch(`/api/events?start=${gridStart.toISOString()}&end=${gridEnd.toISOString()}`)
+              .then((r) => r.json())
+              .then(setEventsList);
+          }}
+          onChange={setEventRules}
         />
       )}
     </div>

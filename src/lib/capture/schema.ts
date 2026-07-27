@@ -1,5 +1,6 @@
 export const ACTION_TYPES = [
   "add_event",
+  "add_recurring_event",
   "cancel_event",
   "modify_event",
   "assign_ride",
@@ -23,13 +24,17 @@ export type CaptureAction = {
   location?: string;
   notes?: string;
   approxDate?: string;
-  // assign_ride / add_ride_rule
+  // assign_ride / add_ride_rule / add_recurring_event
   date?: string;
   dayOfWeek?: number;
   kind?: "activity_dropoff" | "activity_pickup" | "school_pickup";
   from?: string;
   to?: string;
   time?: string;
+  // add_recurring_event
+  startTime?: string;
+  endTime?: string;
+  intervalWeeks?: number;
   driverType?: "member" | "external" | "carpool" | "unassigned";
   driverName?: string;
   label?: string;
@@ -75,11 +80,17 @@ export const CAPTURE_TOOL = {
             notes: { type: "string" },
             approxDate: { type: "string", description: "ISO date used to locate an existing event for cancel_event/modify_event" },
             date: { type: "string", description: "ISO date (assign_ride, add_ride_rule exception, set_menu)" },
-            dayOfWeek: { type: "integer", description: "0=Sunday..6=Saturday, for add_ride_rule" },
+            dayOfWeek: { type: "integer", description: "0=Sunday..6=Saturday, for add_ride_rule/add_recurring_event" },
             kind: { type: "string", enum: ["activity_dropoff", "activity_pickup", "school_pickup"] },
             from: { type: "string", description: "Ride origin" },
             to: { type: "string", description: "Ride destination" },
             time: { type: "string", description: "HH:MM 24h time for the ride" },
+            startTime: { type: "string", description: "HH:MM 24h local start time, for add_recurring_event" },
+            endTime: { type: "string", description: "HH:MM 24h local end time (optional), for add_recurring_event" },
+            intervalWeeks: {
+              type: "integer",
+              description: "For add_recurring_event: 1 for every week (default), 2 for every other week, etc. Only set >1 if the input actually says so (\"every other week\", \"biweekly\").",
+            },
             driverType: { type: "string", enum: ["member", "external", "carpool", "unassigned"] },
             driverName: { type: "string", description: "Resolved family member or external driver name" },
             label: { type: "string", description: "Short label for add_ride_rule" },

@@ -73,6 +73,7 @@ up as free cron-job.org jobs pointed at your deployment:
 | `POST /api/cron/digest` | Sunday 6pm (or whatever Settings → Digest day/time says) | Email the weekly digest to parents; the route itself also checks the day matches before sending |
 | `POST /api/cron/morning-summary` | daily 7am | Push notification with today's run-of-show to parents + sitter |
 | `POST /api/cron/cleanup` | daily | Delete checked-off grocery items older than 48h and expired undo-log rows |
+| `POST /api/cron/events-generate` | weekly (e.g. Sunday 3am) | Materialize the next few weeks of recurring events + their linked rides from Settings → Recurring events |
 
 Gmail polling and the digest/ride-invite emails degrade gracefully (return
 `{configured: false}` / skip sending) until `GMAIL_OAUTH_CLIENT_ID/SECRET/REFRESH_TOKEN`

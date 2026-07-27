@@ -86,6 +86,17 @@ export function parseWallClockOrUtc(dateTimeStr: string, timeZone: string): Date
   return zonedTimeToUtc(dateTimeStr, timeZone);
 }
 
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/** Whether `day` falls on an active week for a rule recurring every `intervalWeeks` weeks from `anchorDate`. */
+export function isOnRecurrenceCycle(day: Date, intervalWeeks: number, anchorDate: string | null): boolean {
+  if (intervalWeeks <= 1 || !anchorDate) return true;
+  const anchorWeek = startOfWeek(new Date(`${anchorDate}T00:00:00`));
+  const dayWeek = startOfWeek(day);
+  const weeksSince = Math.round((dayWeek.getTime() - anchorWeek.getTime()) / WEEK_MS);
+  return weeksSince >= 0 && weeksSince % intervalWeeks === 0;
+}
+
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const MONTH_LABELS = [
   "January",
