@@ -28,6 +28,7 @@ export function RidesClient({
   const [showRules, setShowRules] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateMsg, setGenerateMsg] = useState<string | null>(null);
+  const [emailWarnings, setEmailWarnings] = useState<string[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,7 +58,11 @@ export function RidesClient({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ driverType, driverId, confirmed: driverType !== "unassigned" }),
     });
-    if (res.ok) upsertRide(await res.json());
+    if (res.ok) {
+      const data = await res.json();
+      upsertRide(data);
+      setEmailWarnings(data.emailWarnings ?? []);
+    }
     setAssigningId(null);
   }
 
@@ -109,6 +114,17 @@ export function RidesClient({
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
           {generateMsg}
         </p>
+      )}
+
+      {emailWarnings.length > 0 && (
+        <div className="flex flex-col gap-1 rounded-md border p-2 text-xs" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>
+          {emailWarnings.map((w, i) => (
+            <p key={i}>{w}</p>
+          ))}
+          <button onClick={() => setEmailWarnings([])} className="self-start underline">
+            Dismiss
+          </button>
+        </div>
       )}
 
       {unassignedCount > 0 && (

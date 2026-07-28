@@ -37,13 +37,15 @@ function buildIcs(ride: RideRecord, method: "REQUEST" | "CANCEL", title: string)
   ].join("\r\n");
 }
 
+export type SendRideInviteResult = { ok: boolean; skipped?: boolean; error?: string };
+
 export async function sendRideInvite(
   ride: RideRecord,
   driverEmail: string,
   driverName: string,
   method: "REQUEST" | "CANCEL"
-) {
-  if (!mailerConfigured()) return;
+): Promise<SendRideInviteResult> {
+  if (!mailerConfigured()) return { ok: false, skipped: true };
   const title = `${RIDE_KIND_LABELS[ride.kind]}: ${ride.from} -> ${ride.to}`;
   const ics = buildIcs(ride, method, title);
   const verb = method === "CANCEL" ? "Cancelled" : "Ride assignment";
@@ -60,7 +62,10 @@ export async function sendRideInvite(
         content: ics,
       },
     });
+    return { ok: true };
   } catch (err) {
+    const error = err instanceof Error ? err.message : String(err);
     console.error("Failed to send ride invite", err);
+    return { ok: false, error };
   }
 }

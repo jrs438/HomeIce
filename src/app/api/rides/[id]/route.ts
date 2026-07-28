@@ -48,15 +48,19 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const [updated] = await db.update(rides).set(patch).where(eq(rides.id, id)).returning();
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  const emailWarnings: string[] = [];
+
   if (driverChanged) {
     const prevContact = await resolveDriverContact(before.driverType, before.driverId);
     const nextContact = await resolveDriverContact(updated.driverType, updated.driverId);
 
     if (prevContact && prevContact.email !== nextContact?.email) {
-      await sendRideInvite(updated, prevContact.email, prevContact.name, "CANCEL");
+      const result = await sendRideInvite(updated, prevContact.email, prevContact.name, "CANCEL");
+      if (!result.ok && !result.skipped) emailWarnings.push(`Couldn't email ${prevContact.name} the cancellation: ${result.error}`);
     }
     if (nextContact) {
-      await sendRideInvite(updated, nextContact.email, nextContact.name, "REQUEST");
+      const result = await sendRideInvite(updated, nextContact.email, nextContact.name, "REQUEST");
+      if (!result.ok && !result.skipped) emailWarnings.push(`Couldn't email ${nextContact.name} the invite: ${result.error}`);
     }
     if (updated.driverType === "member" && updated.driverId) {
       await sendPushToMember(updated.driverId, {
@@ -67,7 +71,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     }
   }
 
-  return NextResponse.json(updated);
+  return NextResponse.json(emailWarnings.length ? { ...updated, emailWarnings } : updated);
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
