@@ -5,7 +5,7 @@ import { startOfWeek, addDays, ymd } from "@/lib/dates";
 import { and, gte, lte } from "drizzle-orm";
 import { events } from "@/db/schema";
 
-export async function buildCaptureSystemPrompt(): Promise<string> {
+export async function buildCaptureSystemPrompt(askerName?: string): Promise<string> {
   const [members, externalDrivers, storesJson, weekEvents] = await Promise.all([
     db.query.members.findMany(),
     db.query.externalDrivers.findMany(),
@@ -22,6 +22,7 @@ export async function buildCaptureSystemPrompt(): Promise<string> {
 
   const stores: string[] = JSON.parse(storesJson);
   const today = new Date();
+  const askerIsMember = !!askerName && members.some((m) => m.name.toLowerCase() === askerName.toLowerCase());
 
   const memberLines = members
     .map((m) => `  - ${m.name} (${m.role}${m.isAdmin ? ", admin" : ""})`)
@@ -35,6 +36,8 @@ export async function buildCaptureSystemPrompt(): Promise<string> {
   return `You are the natural-language capture parser for HomeIce, a private family organizer app for the Spier family (Paramus/River Edge, NJ, observant Jewish family — Shabbat/Yom Tov aware).
 
 Today's date is ${ymd(today)} (${today.toISOString()}). Use this to resolve relative dates ("tomorrow", "next Wednesday", "Friday").
+
+${askerIsMember ? `This message was submitted by ${askerName}, a family member listed below. Resolve any first-person reference ("I", "me", "my", "I'll", "I will") to ${askerName} in driverName/kidName/kidNames and any other field naming a family member.` : "This message's sender is not a recognized family member (e.g. it came in over email, or without a logged-in profile) — if it uses first-person language like \"I will drive her\", do not guess who that refers to; set clarification_needed instead of picking a name."}
 
 The family lives in Paramus/River Edge, NJ (${FAMILY_TIMEZONE}). For add_event/modify_event start and end, always write the local wall-clock time the family means (e.g. "5:00 PM" becomes "2026-07-27T17:00:00") — never append "Z" or a UTC offset; the server converts it from local time itself.
 
@@ -58,7 +61,7 @@ Call the capture_actions tool exactly once with every action implied by the inpu
 - Resolve kid nicknames to the exact member names above in kidNames/kidName.
 - Use add_recurring_event (not add_event) whenever the input describes something that repeats on a schedule — "every Thursday", "weekly class", "every other week", a season-long practice, etc. Set dayOfWeek, startTime/endTime (HH:MM local), and intervalWeeks (only >1 if the input actually says "every other week"/"biweekly"/similar — default is 1). Use plain add_event only for a one-time, non-repeating thing.
 - add_ride_rule is ONLY for recording who drives a recurring leg (it requires kind, from, and to) — it does not create the underlying event, so pair it with add_recurring_event when the input describes both a recurring activity AND who drives it. Do not emit add_ride_rule just because a day of week or "weekly" is mentioned with no transportation implied — only emit it when the input actually names or implies transportation (a driver, "pickup"/"drop-off", "needs a ride", "get him there/back", etc.), and if it does but leaves from/to unstated, default from/to to "Home" and the location mentioned rather than leaving them blank.
-- Resolve driver references ("my mom", "grandma", a family member's name) to the exact name above in driverName, and set driverType to "member" or "external" accordingly. Use "carpool" only if the input explicitly says carpool. Use "unassigned" if no driver is mentioned.
+- Resolve driver references ("my mom", "grandma", a family member's name, or a first-person reference like "I'll drive her" — see who submitted this message above) to the exact name above in driverName, and set driverType to "member" or "external" accordingly. Use "carpool" only if the input explicitly says carpool. Use "unassigned" if no driver is mentioned.
 - Resolve store references to the exact store name above.
 - If a date is genuinely ambiguous (e.g. "next practice" with no other context), do not guess — instead set clarification_needed to a specific question, and still record any actions you ARE confident about.
 - If the input doesn't map to any known action, return an empty actions array; the raw text will be preserved automatically.

@@ -42,7 +42,7 @@ export async function runCapture(input: CaptureInput): Promise<CaptureRunResult>
     db.query.externalDrivers.findMany(),
   ]);
 
-  const system = await buildCaptureSystemPrompt();
+  const system = await buildCaptureSystemPrompt(input.from);
 
   let parsed: CaptureResult = { actions: [] };
   try {
