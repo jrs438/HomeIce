@@ -5,6 +5,7 @@ import { isoWeekKey } from "@/lib/week";
 import { parseWallClockOrUtc, addDays, startOfWeek, ymd, WEEKDAY_LABELS } from "@/lib/dates";
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { generateEventsForWeek } from "@/lib/generate-events";
+import { notifyRideDriverChange } from "@/lib/ride-notify";
 import type { CaptureAction } from "./schema";
 
 type Member = { id: string; name: string; role: string };
@@ -184,16 +185,28 @@ export async function applyAction(
       });
       if (existing) {
         const prevDriver = { driverType: existing.driverType, driverId: existing.driverId };
-        await db
+        const [updated] = await db
           .update(rides)
-          .set({ driverType: driver.driverType, driverId: driver.driverId, confirmed: true, updatedAt: new Date() })
-          .where(eq(rides.id, existing.id));
+          .set({
+            driverType: driver.driverType,
+            driverId: driver.driverId,
+            confirmed: true,
+            icsSequence: (existing.icsSequence ?? 0) + 1,
+            updatedAt: new Date(),
+          })
+          .where(eq(rides.id, existing.id))
+          .returning();
         const undoId = await recordUndo(null, `Assigned ride driver`, {
           kind: "set_ride_driver",
           rideId: existing.id,
           ...prevDriver,
         });
-        return { action, applied: true, instant: false, summary: `Assigned driver for ${action.date} ${action.kind}`, undoId };
+        const warnings =
+          driver.driverType !== "unassigned"
+            ? await notifyRideDriverChange(updated, prevDriver, { driverType: driver.driverType, driverId: driver.driverId })
+            : [];
+        const summary = `Assigned driver for ${action.date} ${action.kind}` + (warnings.length ? ` — ${warnings.join("; ")}` : "");
+        return { action, applied: true, instant: false, summary, undoId };
       }
       const [created] = await db
         .insert(rides)
@@ -210,7 +223,12 @@ export async function applyAction(
         })
         .returning();
       const undoId = await recordUndo(null, `Created ride`, { kind: "delete_ride", rideId: created.id });
-      return { action, applied: true, instant: false, summary: `Created ride on ${action.date}`, undoId };
+      const warnings =
+        driver.driverType !== "unassigned"
+          ? await notifyRideDriverChange(created, null, { driverType: driver.driverType, driverId: driver.driverId })
+          : [];
+      const summary = `Created ride on ${action.date}` + (warnings.length ? ` — ${warnings.join("; ")}` : "");
+      return { action, applied: true, instant: false, summary, undoId };
     }
 
     case "add_ride_rule": {

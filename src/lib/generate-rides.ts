@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { rides, rideRules, eventExceptions } from "@/db/schema";
 import { addDays, ymd, isOnRecurrenceCycle } from "@/lib/dates";
 import { and, eq } from "drizzle-orm";
+import { notifyRideDriverChange } from "@/lib/ride-notify";
 
 export async function generateRidesForWeek(weekStart: Date) {
   const activeRules = await db.query.rideRules.findMany({ where: eq(rideRules.active, true) });
@@ -39,17 +40,23 @@ export async function generateRidesForWeek(weekStart: Date) {
       });
       if (existing) continue;
 
-      await db.insert(rides).values({
-        date,
-        time: rule.time,
-        kind: rule.kind,
-        kidIds: rule.kidIds,
-        from: rule.from,
-        to: rule.to,
-        driverType: rule.driverType,
-        driverId: rule.driverId,
-        confirmed: false,
-      });
+      const [inserted] = await db
+        .insert(rides)
+        .values({
+          date,
+          time: rule.time,
+          kind: rule.kind,
+          kidIds: rule.kidIds,
+          from: rule.from,
+          to: rule.to,
+          driverType: rule.driverType,
+          driverId: rule.driverId,
+          confirmed: false,
+        })
+        .returning();
+      if (rule.driverType !== "unassigned") {
+        await notifyRideDriverChange(inserted, null, { driverType: rule.driverType, driverId: rule.driverId });
+      }
       created++;
     }
   }
