@@ -1,16 +1,15 @@
 import { mailerConfigured, getTransport } from "./mailer";
 import { RIDE_KIND_LABELS } from "@/components/rides/types";
 import type { RideRecord } from "@/components/rides/types";
+import { zonedTimeToUtc } from "./dates";
+import { FAMILY_TIMEZONE } from "./family-constants";
 
 function icsDate(d: Date): string {
   return d.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
 }
 
 function rideDateTime(date: string, time: string): Date {
-  const [h, m] = time.split(":").map(Number);
-  const d = new Date(`${date}T00:00:00`);
-  d.setHours(h, m, 0, 0);
-  return d;
+  return zonedTimeToUtc(`${date}T${time}`, FAMILY_TIMEZONE);
 }
 
 function buildIcs(ride: RideRecord, method: "REQUEST" | "CANCEL", title: string) {

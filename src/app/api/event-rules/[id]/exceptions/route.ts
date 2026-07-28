@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { eventExceptions, eventRules, events, rides, rideRules } from "@/db/schema";
 import { and, eq, gte, lte } from "drizzle-orm";
+import { parseWallClockOrUtc } from "@/lib/dates";
+import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,8 +22,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Cancel the materialized event for that date (if any) and clean up rides tied
   // to it — both a per-instance ride (eventId-linked) and any rule-cascade ride
   // (matched by kind/from/to, since those aren't linked to a specific event id).
-  const dayStart = new Date(`${body.date}T00:00:00`);
-  const dayEnd = new Date(`${body.date}T23:59:59.999`);
+  const dayStart = parseWallClockOrUtc(`${body.date}T00:00:00`, FAMILY_TIMEZONE);
+  const dayEnd = parseWallClockOrUtc(`${body.date}T23:59:59.999`, FAMILY_TIMEZONE);
   const instance = await db.query.events.findFirst({
     where: and(eq(events.source, "recurring"), eq(events.sourceRef, id), gte(events.start, dayStart), lte(events.start, dayEnd)),
   });

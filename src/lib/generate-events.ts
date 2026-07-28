@@ -19,8 +19,8 @@ export async function generateEventsForWeek(weekStart: Date) {
     );
 
     for (const rule of rulesForDay) {
-      const dayStart = new Date(`${date}T00:00:00`);
-      const dayEnd = new Date(`${date}T23:59:59.999`);
+      const dayStart = parseWallClockOrUtc(`${date}T00:00:00`, FAMILY_TIMEZONE);
+      const dayEnd = parseWallClockOrUtc(`${date}T23:59:59.999`, FAMILY_TIMEZONE);
       const existing = await db.query.events.findFirst({
         where: and(
           eq(events.source, "recurring"),
