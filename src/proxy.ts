@@ -3,6 +3,7 @@ import { verifyToken } from "@/lib/crypto";
 
 const PUBLIC_PATHS = [
   "/login",
+  "/install",
   "/offline.html",
   "/manifest.webmanifest",
   "/sw.js",

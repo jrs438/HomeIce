@@ -7,19 +7,20 @@ export function ShareButton({ familyName }: { familyName?: string }) {
   const [copied, setCopied] = useState(false);
 
   async function share() {
-    const url = window.location.origin;
-    const text = `${familyName ? `${familyName} — ` : ""}Join us on HomeIce for our shared calendar, rides, and shopping list.`;
+    const appUrl = window.location.origin;
+    const installUrl = `${appUrl}/install`;
+    const text = `${familyName ? `${familyName} — ` : ""}Join us on HomeIce for our shared calendar, rides, and shopping list.\n\nAdd it to your Home Screen (10 seconds, with pictures): ${installUrl}`;
 
     if (navigator.share) {
       try {
-        await navigator.share({ title: "HomeIce", text, url });
+        await navigator.share({ title: "HomeIce", text, url: appUrl });
       } catch {
         // user cancelled the share sheet — nothing to do
       }
       return;
     }
 
-    await navigator.clipboard.writeText(`${text} ${url}`);
+    await navigator.clipboard.writeText(`${text}\n${appUrl}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }

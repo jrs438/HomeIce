@@ -21,7 +21,7 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const chromeless = pathname?.startsWith("/login");
+  const chromeless = pathname?.startsWith("/login") || pathname?.startsWith("/install");
 
   if (chromeless) {
     return <main className="flex-1 flex flex-col">{children}</main>;
