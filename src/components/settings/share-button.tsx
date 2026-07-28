@@ -9,18 +9,21 @@ export function ShareButton({ familyName }: { familyName?: string }) {
   async function share() {
     const appUrl = window.location.origin;
     const installUrl = `${appUrl}/install`;
-    const text = `${familyName ? `${familyName} — ` : ""}Join us on HomeIce for our shared calendar, rides, and shopping list.\n\nAdd it to your Home Screen (10 seconds, with pictures): ${installUrl}`;
+    const text = `${familyName ? `${familyName} — ` : ""}Join us on HomeIce for our shared calendar, rides, and shopping list.\n\nTap the link below to add it to your Home Screen (10 seconds, with pictures):`;
 
+    // Only ever share one link (the install page) so the preview card that
+    // shows up in Messages/WhatsApp points at the instructions, not the bare
+    // app root — a second, separate link here just confuses recipients.
     if (navigator.share) {
       try {
-        await navigator.share({ title: "HomeIce", text, url: appUrl });
+        await navigator.share({ title: "HomeIce", text, url: installUrl });
       } catch {
         // user cancelled the share sheet — nothing to do
       }
       return;
     }
 
-    await navigator.clipboard.writeText(`${text}\n${appUrl}`);
+    await navigator.clipboard.writeText(`${text}\n${installUrl}`);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }

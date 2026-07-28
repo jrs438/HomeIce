@@ -2,6 +2,17 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Add HomeIce to your Home Screen",
+  description: "Takes about 10 seconds — add HomeIce to your Home Screen like a regular app.",
+  openGraph: {
+    title: "Add HomeIce to your Home Screen",
+    description: "Takes about 10 seconds — add HomeIce to your Home Screen like a regular app.",
+    images: ["/icons/icon-512.png"],
+  },
+  twitter: {
+    card: "summary",
+    title: "Add HomeIce to your Home Screen",
+    images: ["/icons/icon-512.png"],
+  },
 };
 
 function ShareIcon() {
