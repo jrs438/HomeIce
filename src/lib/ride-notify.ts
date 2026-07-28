@@ -1,8 +1,10 @@
 import { db } from "@/db";
-import { members, externalDrivers } from "@/db/schema";
+import { members, externalDrivers, rides } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { sendRideInvite } from "@/lib/ride-invite";
 import { sendPushToMember } from "@/lib/push";
+import { utcToZonedParts } from "@/lib/dates";
+import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import type { RideRecord } from "@/components/rides/types";
 
 type DriverRef = { driverType: RideRecord["driverType"]; driverId: string | null };
@@ -70,4 +72,55 @@ export async function notifyRideCancelled(ride: RideRecord): Promise<string[]> {
   const result = await sendRideInvite(ride, contact.email, contact.name, "CANCEL");
   if (!result.ok && !result.skipped) return [`Couldn't email ${contact.name} the cancellation: ${result.error}`];
   return [];
+}
+
+/**
+ * Sends an updated invite (same UID, higher SEQUENCE — calendar clients show
+ * this as an update, not a duplicate) for a ride whose date/time/location
+ * changed but whose driver didn't. No-op if nobody real is assigned.
+ */
+export async function notifyRideDetailsChanged(ride: RideRecord): Promise<string[]> {
+  if (ride.driverType === "unassigned") return [];
+  const contact = await resolveDriverContact(ride.driverType, ride.driverId);
+  if (!contact) return [];
+  const result = await sendRideInvite(ride, contact.email, contact.name, "REQUEST");
+  if (!result.ok && !result.skipped) return [`Couldn't email ${contact.name} the updated time: ${result.error}`];
+  return [];
+}
+
+/**
+ * Keeps a per-instance ride (rides.eventId) in step with its event: when the
+ * event's time or location changes, the linked ride's date/time move with it
+ * (drop-off tracks the start, pick-up tracks the end), and — since the whole
+ * point is nobody should be left driving to a stale time — sends an updated
+ * invite if a real driver is already assigned.
+ */
+export async function syncLinkedRidesToEvent(
+  eventId: string,
+  newStart: Date,
+  newEnd: Date | null,
+  newLocation: string | null
+): Promise<string[]> {
+  const linkedRides = await db.query.rides.findMany({ where: eq(rides.eventId, eventId) });
+  const warnings: string[] = [];
+
+  for (const ride of linkedRides) {
+    const isDropoff = ride.kind === "activity_dropoff";
+    const refInstant = isDropoff ? newStart : (newEnd ?? newStart);
+    const { date, time } = utcToZonedParts(refInstant, FAMILY_TIMEZONE);
+
+    const patch: Partial<typeof rides.$inferInsert> = { date, time, updatedAt: new Date() };
+    if (newLocation) {
+      if (isDropoff) patch.to = newLocation;
+      else patch.from = newLocation;
+    }
+    if (ride.driverType !== "unassigned") patch.icsSequence = (ride.icsSequence ?? 0) + 1;
+
+    const [updated] = await db.update(rides).set(patch).where(eq(rides.id, ride.id)).returning();
+    if (updated.driverType !== "unassigned") {
+      warnings.push(...(await notifyRideDetailsChanged(updated)));
+    }
+  }
+
+  return warnings;
 }

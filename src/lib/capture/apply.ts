@@ -6,7 +6,7 @@ import { parseWallClockOrUtc, addDays, startOfWeek, ymd, WEEKDAY_LABELS } from "
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { generateEventsForWeek } from "@/lib/generate-events";
 import { generateRidesForWeek } from "@/lib/generate-rides";
-import { notifyRideDriverChange, notifyRideCancelled } from "@/lib/ride-notify";
+import { notifyRideDriverChange, notifyRideCancelled, syncLinkedRidesToEvent } from "@/lib/ride-notify";
 import type { CaptureAction } from "./schema";
 
 type Member = { id: string; name: string; role: string };
@@ -172,7 +172,7 @@ export async function applyAction(
       const match = await db.query.events.findFirst({ where: ilike(events.title, `%${action.title}%`) });
       if (!match) return { action, applied: false, instant: false, summary: `Could not find event "${action.title}" to modify` };
       const prev = { title: match.title, start: match.start, end: match.end, location: match.location, notes: match.notes };
-      await db
+      const [updated] = await db
         .update(events)
         .set({
           start: action.start
@@ -189,13 +189,22 @@ export async function applyAction(
           notes: action.notes ?? match.notes,
           updatedAt: new Date(),
         })
-        .where(eq(events.id, match.id));
+        .where(eq(events.id, match.id))
+        .returning();
       const undoId = await recordUndo(null, `Modified event "${match.title}"`, {
         kind: "restore_event_fields",
         eventId: match.id,
         fields: prev,
       });
-      return { action, applied: true, instant: false, summary: `Updated "${match.title}"`, undoId };
+      const scheduleChanged =
+        updated.start.getTime() !== prev.start.getTime() ||
+        (updated.end?.getTime() ?? null) !== (prev.end?.getTime() ?? null) ||
+        updated.location !== prev.location;
+      const warnings = scheduleChanged
+        ? await syncLinkedRidesToEvent(updated.id, updated.start, updated.end, updated.location)
+        : [];
+      const summary = `Updated "${match.title}"` + (warnings.length ? ` — ${warnings.join("; ")}` : "");
+      return { action, applied: true, instant: false, summary, undoId };
     }
 
     case "assign_ride": {
@@ -378,12 +387,27 @@ export async function applyUndo(inverseAction: Record<string, unknown>) {
       }
       return;
     }
-    case "restore_event_fields":
+    case "restore_event_fields": {
+      // Same JSONB round-trip issue as restore_event_and_rides: start/end come
+      // back as ISO strings, not Date objects, which drizzle's timestamp
+      // columns reject.
+      const fields = inverseAction.fields as Record<string, unknown>;
+      const restoredStart = new Date(fields.start as string);
+      const restoredEnd = fields.end ? new Date(fields.end as string) : null;
+      const restoredLocation = (fields.location as string | null) ?? null;
       await db
         .update(events)
-        .set(inverseAction.fields as Partial<typeof events.$inferInsert>)
+        .set({
+          title: fields.title as string,
+          start: restoredStart,
+          end: restoredEnd,
+          location: restoredLocation,
+          notes: fields.notes as string | null,
+        })
         .where(eq(events.id, inverseAction.eventId as string));
+      await syncLinkedRidesToEvent(inverseAction.eventId as string, restoredStart, restoredEnd, restoredLocation);
       return;
+    }
     case "delete_ride": {
       const rideToDelete = await db.query.rides.findFirst({ where: eq(rides.id, inverseAction.rideId as string) });
       if (rideToDelete) await notifyRideCancelled(rideToDelete);

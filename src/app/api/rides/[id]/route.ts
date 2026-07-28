@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { rides } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { notifyRideDriverChange, notifyRideCancelled } from "@/lib/ride-notify";
+import { notifyRideDriverChange, notifyRideCancelled, notifyRideDetailsChanged } from "@/lib/ride-notify";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -23,20 +23,31 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   const driverChanged =
     body.driverType !== undefined && (body.driverType !== before.driverType || body.driverId !== before.driverId);
 
+  const detailsChanged =
+    (body.date !== undefined && body.date !== before.date) ||
+    (body.time !== undefined && body.time !== before.time) ||
+    (body.from !== undefined && body.from !== before.from) ||
+    (body.to !== undefined && body.to !== before.to);
+
   if (body.driverType !== undefined) patch.driverType = body.driverType;
   if (body.driverId !== undefined) patch.driverId = body.driverId || null;
-  if (driverChanged) patch.icsSequence = (before.icsSequence ?? 0) + 1;
+  if (driverChanged || (detailsChanged && before.driverType !== "unassigned")) {
+    patch.icsSequence = (before.icsSequence ?? 0) + 1;
+  }
 
   const [updated] = await db.update(rides).set(patch).where(eq(rides.id, id)).returning();
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
-  const emailWarnings = driverChanged
-    ? await notifyRideDriverChange(
-        updated,
-        { driverType: before.driverType, driverId: before.driverId },
-        { driverType: updated.driverType, driverId: updated.driverId }
-      )
-    : [];
+  let emailWarnings: string[] = [];
+  if (driverChanged) {
+    emailWarnings = await notifyRideDriverChange(
+      updated,
+      { driverType: before.driverType, driverId: before.driverId },
+      { driverType: updated.driverType, driverId: updated.driverId }
+    );
+  } else if (detailsChanged) {
+    emailWarnings = await notifyRideDetailsChanged(updated);
+  }
 
   return NextResponse.json(emailWarnings.length ? { ...updated, emailWarnings } : updated);
 }

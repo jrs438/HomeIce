@@ -86,6 +86,26 @@ export function parseWallClockOrUtc(dateTimeStr: string, timeZone: string): Date
   return zonedTimeToUtc(dateTimeStr, timeZone);
 }
 
+/** The inverse of zonedTimeToUtc: given an instant, what date/time is it in `timeZone`? */
+export function utcToZonedParts(d: Date, timeZone: string): { date: string; time: string } {
+  const dtf = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    hourCycle: "h23",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+  const parts: Record<string, string> = {};
+  for (const p of dtf.formatToParts(d)) parts[p.type] = p.value;
+  return {
+    date: `${parts.year}-${parts.month}-${parts.day}`,
+    time: `${parts.hour}:${parts.minute}:${parts.second}`,
+  };
+}
+
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 
 /** Whether `day` falls on an active week for a rule recurring every `intervalWeeks` weeks from `anchorDate`. */

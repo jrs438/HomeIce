@@ -2,10 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { events } from "@/db/schema";
 import { eq } from "drizzle-orm";
+import { syncLinkedRidesToEvent } from "@/lib/ride-notify";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const body = await req.json();
+
+  const before = await db.query.events.findFirst({ where: eq(events.id, id) });
+  if (!before) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
   const patch: Partial<typeof events.$inferInsert> = { updatedAt: new Date() };
   if (body.title !== undefined) patch.title = body.title;
@@ -19,7 +23,18 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
   const [updated] = await db.update(events).set(patch).where(eq(events.id, id)).returning();
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
-  return NextResponse.json(updated);
+
+  const scheduleChanged =
+    updated.start.getTime() !== before.start.getTime() ||
+    (updated.end?.getTime() ?? null) !== (before.end?.getTime() ?? null) ||
+    updated.location !== before.location;
+
+  let rideWarnings: string[] = [];
+  if (scheduleChanged) {
+    rideWarnings = await syncLinkedRidesToEvent(updated.id, updated.start, updated.end, updated.location);
+  }
+
+  return NextResponse.json({ ...updated, rideWarnings });
 }
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
