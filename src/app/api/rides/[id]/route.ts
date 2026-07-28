@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { rides } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { notifyRideDriverChange } from "@/lib/ride-notify";
+import { notifyRideDriverChange, notifyRideCancelled } from "@/lib/ride-notify";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -43,6 +43,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 
 export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
+  const ride = await db.query.rides.findFirst({ where: eq(rides.id, id) });
+  if (ride) await notifyRideCancelled(ride);
   await db.delete(rides).where(eq(rides.id, id));
   return NextResponse.json({ ok: true });
 }

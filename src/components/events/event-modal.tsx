@@ -194,6 +194,8 @@ export function EventModal({
       });
       if (res.ok) {
         const saved = await res.json();
+        // DELETE notifies the driver (if a real one was assigned) before removing the ride.
+        await Promise.all(linkedRides.map((r) => fetch(`/api/rides/${r.id}`, { method: "DELETE" })));
         onSaved(saved);
         onDeleted?.(initial.id);
         onClose();

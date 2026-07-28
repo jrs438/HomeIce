@@ -5,7 +5,7 @@ import { isoWeekKey } from "@/lib/week";
 import { parseWallClockOrUtc, addDays, startOfWeek, ymd, WEEKDAY_LABELS } from "@/lib/dates";
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { generateEventsForWeek } from "@/lib/generate-events";
-import { notifyRideDriverChange } from "@/lib/ride-notify";
+import { notifyRideDriverChange, notifyRideCancelled } from "@/lib/ride-notify";
 import type { CaptureAction } from "./schema";
 
 type Member = { id: string; name: string; role: string };
@@ -137,13 +137,21 @@ export async function applyAction(
         where: and(ilike(events.title, `%${action.title}%`)),
       });
       if (!match) return { action, applied: false, instant: false, summary: `Could not find event "${action.title}" to cancel` };
+
+      const linkedRides = await db.query.rides.findMany({ where: eq(rides.eventId, match.id) });
+      const warnings: string[] = [];
+      for (const ride of linkedRides) warnings.push(...(await notifyRideCancelled(ride)));
+      if (linkedRides.length) await db.delete(rides).where(eq(rides.eventId, match.id));
+
       await db.update(events).set({ status: "cancelled" }).where(eq(events.id, match.id));
       const undoId = await recordUndo(null, `Cancelled event "${match.title}"`, {
-        kind: "set_event_status",
+        kind: "restore_event_and_rides",
         eventId: match.id,
         status: match.status,
+        rides: linkedRides,
       });
-      return { action, applied: true, instant: false, summary: `Cancelled "${match.title}"`, undoId };
+      const summary = `Cancelled "${match.title}"` + (warnings.length ? ` — ${warnings.join("; ")}` : "");
+      return { action, applied: true, instant: false, summary, undoId };
     }
 
     case "modify_event": {
@@ -332,15 +340,35 @@ export async function applyUndo(inverseAction: Record<string, unknown>) {
         .set({ status: inverseAction.status as "proposed" | "confirmed" | "cancelled" })
         .where(eq(events.id, inverseAction.eventId as string));
       return;
+    case "restore_event_and_rides": {
+      await db
+        .update(events)
+        .set({ status: inverseAction.status as "proposed" | "confirmed" | "cancelled" })
+        .where(eq(events.id, inverseAction.eventId as string));
+      const ridesToRestore = (inverseAction.rides as Record<string, unknown>[]) ?? [];
+      for (const ride of ridesToRestore) {
+        // Round-tripping through undo_log's JSONB column turns Date objects into
+        // ISO strings, but drizzle's timestamp insert expects real Date objects.
+        await db.insert(rides).values({
+          ...ride,
+          createdAt: new Date(ride.createdAt as string),
+          updatedAt: new Date(ride.updatedAt as string),
+        } as typeof rides.$inferInsert);
+      }
+      return;
+    }
     case "restore_event_fields":
       await db
         .update(events)
         .set(inverseAction.fields as Partial<typeof events.$inferInsert>)
         .where(eq(events.id, inverseAction.eventId as string));
       return;
-    case "delete_ride":
+    case "delete_ride": {
+      const rideToDelete = await db.query.rides.findFirst({ where: eq(rides.id, inverseAction.rideId as string) });
+      if (rideToDelete) await notifyRideCancelled(rideToDelete);
       await db.delete(rides).where(eq(rides.id, inverseAction.rideId as string));
       return;
+    }
     case "set_ride_driver":
       await db
         .update(rides)

@@ -57,3 +57,17 @@ export async function notifyRideDriverChange(
 
   return warnings;
 }
+
+/**
+ * Sends a cancellation invite for a ride that's being removed entirely (event
+ * cancelled, recurring occurrence skipped, series deleted, etc.) — a no-op if
+ * nobody real was assigned to it.
+ */
+export async function notifyRideCancelled(ride: RideRecord): Promise<string[]> {
+  if (ride.driverType === "unassigned") return [];
+  const contact = await resolveDriverContact(ride.driverType, ride.driverId);
+  if (!contact) return [];
+  const result = await sendRideInvite(ride, contact.email, contact.name, "CANCEL");
+  if (!result.ok && !result.skipped) return [`Couldn't email ${contact.name} the cancellation: ${result.error}`];
+  return [];
+}

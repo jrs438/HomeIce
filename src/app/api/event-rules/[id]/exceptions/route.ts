@@ -4,6 +4,7 @@ import { eventExceptions, eventRules, events, rides, rideRules } from "@/db/sche
 import { and, eq, gte, lte } from "drizzle-orm";
 import { parseWallClockOrUtc } from "@/lib/dates";
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
+import { notifyRideCancelled } from "@/lib/ride-notify";
 
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -28,12 +29,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     where: and(eq(events.source, "recurring"), eq(events.sourceRef, id), gte(events.start, dayStart), lte(events.start, dayEnd)),
   });
   if (instance) {
+    const linkedRides = await db.query.rides.findMany({ where: eq(rides.eventId, instance.id) });
+    for (const r of linkedRides) await notifyRideCancelled(r);
     await db.delete(rides).where(eq(rides.eventId, instance.id));
     await db.update(events).set({ status: "cancelled" }).where(eq(events.id, instance.id));
   }
 
   const linkedRideRules = await db.query.rideRules.findMany({ where: eq(rideRules.eventRuleId, id) });
   for (const rr of linkedRideRules) {
+    const matchingRides = await db.query.rides.findMany({
+      where: and(eq(rides.date, body.date), eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to)),
+    });
+    for (const r of matchingRides) await notifyRideCancelled(r);
     await db
       .delete(rides)
       .where(and(eq(rides.date, body.date), eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to)));

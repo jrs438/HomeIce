@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { eventRules, events, rides, rideRules } from "@/db/schema";
 import { eq, and, gte } from "drizzle-orm";
+import { notifyRideCancelled } from "@/lib/ride-notify";
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,6 +36,8 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     where: and(eq(events.source, "recurring"), eq(events.sourceRef, id), gte(events.start, now)),
   });
   for (const instance of futureInstances) {
+    const linkedRides = await db.query.rides.findMany({ where: eq(rides.eventId, instance.id) });
+    for (const r of linkedRides) await notifyRideCancelled(r);
     await db.delete(rides).where(eq(rides.eventId, instance.id));
   }
   if (futureInstances.length) {
@@ -45,6 +48,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
 
   const linkedRideRules = await db.query.rideRules.findMany({ where: eq(rideRules.eventRuleId, id) });
   for (const rr of linkedRideRules) {
+    const matchingRides = await db.query.rides.findMany({
+      where: and(eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to), gte(rides.date, now.toISOString().slice(0, 10))),
+    });
+    for (const r of matchingRides) await notifyRideCancelled(r);
     await db.delete(rides).where(and(eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to), gte(rides.date, now.toISOString().slice(0, 10))));
   }
 
