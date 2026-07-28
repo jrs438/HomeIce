@@ -4,7 +4,7 @@ import { eq } from "drizzle-orm";
 import { anthropic, CAPTURE_MODEL } from "@/lib/anthropic";
 import { buildCaptureSystemPrompt } from "./context";
 import { CAPTURE_TOOL, type CaptureAction, type CaptureResult } from "./schema";
-import { applyAction, type ApplyOutcome } from "./apply";
+import { applyAction, type ApplyOutcome, type CaptureContext } from "./apply";
 
 export type CaptureInput = {
   type: "text" | "image" | "email";
@@ -96,8 +96,9 @@ export async function runCapture(input: CaptureInput): Promise<CaptureRunResult>
   }
 
   const outcomes: ApplyOutcome[] = [];
+  const context: CaptureContext = {};
   for (const action of actions) {
-    outcomes.push(await applyAction(action, members, externalDrivers));
+    outcomes.push(await applyAction(action, members, externalDrivers, context));
   }
 
   if (parsed.clarification_needed) {
@@ -126,8 +127,9 @@ export async function approveInboxItem(id: string) {
   ]);
   const actions = (item.parsedActions as CaptureAction[]) ?? [];
   const outcomes: ApplyOutcome[] = [];
+  const context: CaptureContext = {};
   for (const action of actions) {
-    outcomes.push(await applyAction(action, members, externalDrivers));
+    outcomes.push(await applyAction(action, members, externalDrivers, context));
   }
   await db.update(inboxItems).set({ status: "approved" }).where(eq(inboxItems.id, id));
   return outcomes;

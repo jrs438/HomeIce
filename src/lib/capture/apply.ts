@@ -5,6 +5,7 @@ import { isoWeekKey } from "@/lib/week";
 import { parseWallClockOrUtc, addDays, startOfWeek, ymd, WEEKDAY_LABELS } from "@/lib/dates";
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { generateEventsForWeek } from "@/lib/generate-events";
+import { generateRidesForWeek } from "@/lib/generate-rides";
 import { notifyRideDriverChange, notifyRideCancelled } from "@/lib/ride-notify";
 import type { CaptureAction } from "./schema";
 
@@ -67,10 +68,19 @@ export type ApplyOutcome = {
   undoId?: string;
 };
 
+// Shared across every action applied within one capture request, so a
+// ride_rule immediately following a recurring event for the same day can
+// link back to it (enabling the skip-one-occurrence cascade for it too).
+export type CaptureContext = {
+  lastEventRuleId?: string;
+  lastEventRuleDayOfWeek?: number;
+};
+
 export async function applyAction(
   action: CaptureAction,
   members: Member[],
-  externalDrivers: ExternalDriver[]
+  externalDrivers: ExternalDriver[],
+  context: CaptureContext = {}
 ): Promise<ApplyOutcome> {
   switch (action.type) {
     case "add_event": {
@@ -116,6 +126,9 @@ export async function applyAction(
           notes: action.notes || null,
         })
         .returning();
+
+      context.lastEventRuleId = created.id;
+      context.lastEventRuleDayOfWeek = created.dayOfWeek;
 
       const weekStart = startOfWeek(new Date());
       for (let w = 0; w < 4; w++) {
@@ -244,6 +257,7 @@ export async function applyAction(
         return { action, applied: false, instant: false, summary: "Missing fields for ride rule" };
       }
       const driver = resolveDriver(action.driverType, action.driverName, members, externalDrivers);
+      const linkToEventRule = context.lastEventRuleDayOfWeek === action.dayOfWeek ? context.lastEventRuleId : undefined;
       const [created] = await db
         .insert(rideRules)
         .values({
@@ -256,8 +270,15 @@ export async function applyAction(
           time: action.time || null,
           driverType: driver.driverType,
           driverId: driver.driverId,
+          eventRuleId: linkToEventRule,
         })
         .returning();
+
+      const weekStart = startOfWeek(new Date());
+      for (let w = 0; w < 4; w++) {
+        await generateRidesForWeek(addDays(weekStart, w * 7));
+      }
+
       const undoId = await recordUndo(null, `Added ride default "${created.label}"`, {
         kind: "delete_ride_rule",
         ruleId: created.id,
