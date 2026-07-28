@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { InstallStandaloneRedirect } from "./standalone-redirect";
 
 export const metadata: Metadata = {
   title: "Add HomeIce to your Home Screen",
@@ -65,6 +66,7 @@ export default function InstallPage() {
       className="mx-auto flex min-h-screen w-full max-w-lg flex-col gap-8 px-5 py-10"
       style={{ background: "var(--bg)", color: "var(--text)" }}
     >
+      <InstallStandaloneRedirect />
       <div>
         <p className="masthead text-2xl">HOMEICE</p>
         <h1 className="mt-2 text-lg font-semibold">Add HomeIce to your Home Screen</h1>
