@@ -9,7 +9,10 @@ export async function GET(req: NextRequest) {
   const end = searchParams.get("end");
 
   const conditions = [ne(events.status, "cancelled")];
-  if (start) conditions.push(or(isNull(events.end), gte(events.end, new Date(start)))!);
+  if (start) {
+    const startDate = new Date(start);
+    conditions.push(or(gte(events.end, startDate), and(isNull(events.end), gte(events.start, startDate)))!);
+  }
   if (end) conditions.push(lte(events.start, new Date(end)));
 
   const rows = await db.query.events.findMany({

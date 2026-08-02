@@ -21,7 +21,11 @@ export async function POST(req: NextRequest) {
 
   const [todaysEvents, todaysRides] = await Promise.all([
     db.query.events.findMany({
-      where: and(ne(events.status, "cancelled"), or(isNull(events.end), gte(events.end, dayStart))!, lte(events.start, dayEnd)),
+      where: and(
+        ne(events.status, "cancelled"),
+        lte(events.start, dayEnd),
+        or(gte(events.end, dayStart), and(isNull(events.end), gte(events.start, dayStart)))!
+      ),
     }),
     db.query.rides.findMany({ where: eq(rides.date, today) }),
   ]);

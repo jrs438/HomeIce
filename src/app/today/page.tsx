@@ -16,8 +16,8 @@ export default async function TodayPage() {
     db.query.events.findMany({
       where: and(
         ne(events.status, "cancelled"),
-        or(isNull(events.end), gte(events.end, dayStart))!,
-        lte(events.start, dayEnd)
+        lte(events.start, dayEnd),
+        or(gte(events.end, dayStart), and(isNull(events.end), gte(events.start, dayStart)))!
       ),
       orderBy: (e, { asc }) => asc(e.start),
     }),
