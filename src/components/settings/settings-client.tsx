@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { LogOut, Plus, Trash2, Pencil } from "lucide-react";
+import Link from "next/link";
+import { LogOut, Plus, Trash2, Pencil, ChevronRight } from "lucide-react";
 import type { SettingsKey } from "@/lib/settings";
 import { ExternalDriversSection } from "./external-drivers-section";
 import { PushToggle } from "./push-toggle";
@@ -200,6 +201,20 @@ export function SettingsClient({
       <ExternalDriversSection initial={initialExternalDrivers} isAdmin={isAdmin} />
 
       <IcsFeedsSection initial={initialIcsFeeds} isAdmin={isAdmin} />
+
+      <section className="flex flex-col gap-3">
+        <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+          Money
+        </h2>
+        <Link
+          href="/money"
+          className="flex items-center justify-between rounded-lg border p-3 text-sm font-medium"
+          style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
+        >
+          Babysitter hours &amp; shopping reimbursements
+          <ChevronRight size={16} style={{ color: "var(--text-muted)" }} />
+        </Link>
+      </section>
 
       {isAdmin && (
         <section className="flex flex-col gap-3">

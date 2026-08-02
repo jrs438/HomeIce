@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   integer,
+  numeric,
   date,
   time,
   type AnyPgColumn,
@@ -216,4 +217,28 @@ export const undoLog = pgTable("undo_log", {
   applied: boolean("applied").notNull().default(false),
   expiresAt: timestamp("expires_at").notNull(),
   createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const sitterShifts = pgTable("sitter_shifts", {
+  id: id(),
+  sitterId: text("sitter_id").references(() => members.id, { onDelete: "set null" }),
+  date: date("date").notNull(),
+  hours: numeric("hours", { precision: 5, scale: 2 }).notNull(),
+  rate: numeric("rate", { precision: 7, scale: 2 }),
+  notes: text("notes"),
+  paid: boolean("paid").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
+});
+
+export const reimbursements = pgTable("reimbursements", {
+  id: id(),
+  memberId: text("member_id").references(() => members.id, { onDelete: "set null" }),
+  date: date("date").notNull(),
+  amount: numeric("amount", { precision: 8, scale: 2 }).notNull(),
+  store: text("store"),
+  notes: text("notes"),
+  reimbursed: boolean("reimbursed").notNull().default(false),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+  updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
