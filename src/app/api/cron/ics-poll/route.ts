@@ -5,6 +5,9 @@ import { eq } from "drizzle-orm";
 import { requireCronSecret } from "@/lib/require-cron";
 import { parseIcs } from "@/lib/ics";
 import { sendPushToMember } from "@/lib/push";
+import { notifyRideCancelled } from "@/lib/ride-notify";
+import { utcToZonedParts } from "@/lib/dates";
+import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 
 export async function POST(req: NextRequest) {
   const unauthorized = requireCronSecret(req);
@@ -14,6 +17,7 @@ export async function POST(req: NextRequest) {
   let created = 0;
   let updated = 0;
   let flaggedRides = 0;
+  let ridesCreated = 0;
   const errors: string[] = [];
 
   for (const feed of feeds) {
@@ -32,24 +36,63 @@ export async function POST(req: NextRequest) {
 
         if (!existing) {
           if (item.cancelled) continue;
-          await db.insert(events).values({
-            title,
-            start: item.start,
-            end: item.end,
-            allDay: item.allDay,
-            location: item.location,
-            kidIds: feed.kind === "busy" ? [] : feed.kidIds,
-            source: "ics",
-            sourceRef: feed.id,
-            icsUid: item.uid,
-            status: "confirmed",
-            notes: item.description,
-          });
+          const [createdEvent] = await db
+            .insert(events)
+            .values({
+              title,
+              start: item.start,
+              end: item.end,
+              allDay: item.allDay,
+              location: item.location,
+              kidIds: feed.kind === "busy" ? [] : feed.kidIds,
+              source: "ics",
+              sourceRef: feed.id,
+              icsUid: item.uid,
+              status: "confirmed",
+              notes: item.description,
+            })
+            .returning();
           created++;
+
+          if (feed.kind !== "busy" && (feed.needsDropoff || feed.needsPickup)) {
+            const place = item.location || feed.label;
+            if (feed.needsDropoff) {
+              const { date, time } = utcToZonedParts(item.start, FAMILY_TIMEZONE);
+              await db.insert(rides).values({
+                eventId: createdEvent.id,
+                date,
+                time,
+                kind: "activity_dropoff",
+                kidIds: feed.kidIds,
+                from: "Home",
+                to: place,
+                driverType: "unassigned",
+              });
+              ridesCreated++;
+            }
+            if (feed.needsPickup) {
+              const { date, time } = utcToZonedParts(item.end ?? item.start, FAMILY_TIMEZONE);
+              await db.insert(rides).values({
+                eventId: createdEvent.id,
+                date,
+                time,
+                kind: "activity_pickup",
+                kidIds: feed.kidIds,
+                from: place,
+                to: "Home",
+                driverType: "unassigned",
+              });
+              ridesCreated++;
+            }
+          }
           continue;
         }
 
         if (item.cancelled) {
+          const linkedRides = await db.query.rides.findMany({ where: eq(rides.eventId, existing.id) });
+          for (const ride of linkedRides) await notifyRideCancelled(ride);
+          if (linkedRides.length) await db.delete(rides).where(eq(rides.eventId, existing.id));
+
           await db.update(events).set({ status: "cancelled" }).where(eq(events.id, existing.id));
           updated++;
           continue;
@@ -87,5 +130,5 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, created, updated, flaggedRides, feedsPolled: feeds.length, errors });
+  return NextResponse.json({ ok: true, created, updated, flaggedRides, ridesCreated, feedsPolled: feeds.length, errors });
 }

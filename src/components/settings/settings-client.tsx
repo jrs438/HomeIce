@@ -29,7 +29,16 @@ type ExternalDriver = {
   notes: string | null;
 };
 
-type IcsFeed = { id: string; url: string; label: string; kind: "events" | "busy"; active: boolean };
+type IcsFeed = {
+  id: string;
+  url: string;
+  label: string;
+  kind: "events" | "busy";
+  kidIds: string[];
+  needsDropoff: boolean;
+  needsPickup: boolean;
+  active: boolean;
+};
 
 const COLOR_PRESETS = [
   "#2563EB",
@@ -200,7 +209,11 @@ export function SettingsClient({
 
       <ExternalDriversSection initial={initialExternalDrivers} isAdmin={isAdmin} />
 
-      <IcsFeedsSection initial={initialIcsFeeds} isAdmin={isAdmin} />
+      <IcsFeedsSection
+        initial={initialIcsFeeds}
+        kids={members.filter((m) => m.role === "kid").map((m) => ({ id: m.id, name: m.name, color: m.color }))}
+        isAdmin={isAdmin}
+      />
 
       <section className="flex flex-col gap-3">
         <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>

@@ -189,6 +189,12 @@ export const icsFeeds = pgTable("ics_feeds", {
   label: text("label").notNull(),
   kidIds: text("kid_ids").array().notNull().default([]),
   kind: icsFeedKindEnum("kind").notNull().default("events"),
+  // Whether newly-imported events from this feed should automatically get an
+  // unassigned drop-off/pick-up ride created alongside them (someone still
+  // has to claim it on the Rides tab). Ignored for "busy" feeds, which are
+  // block-out overlays, not real family events.
+  needsDropoff: boolean("needs_dropoff").notNull().default(false),
+  needsPickup: boolean("needs_pickup").notNull().default(false),
   lastPolled: timestamp("last_polled"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),
