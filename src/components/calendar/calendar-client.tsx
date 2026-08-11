@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { ChevronLeft, ChevronRight, Repeat } from "lucide-react";
 import { EventRow } from "@/components/events/event-row";
 import { EventModal } from "@/components/events/event-modal";
@@ -11,6 +11,37 @@ import { addDays, startOfDay, startOfWeek, isSameDay, ymd, WEEKDAY_LABELS, MONTH
 
 type ViewMode = "month" | "week" | "day";
 
+const KID_FILTER_KEY = "hi-calendar-kid-filter";
+
+// A minimal external store around localStorage so the per-kid filter reads
+// via useSyncExternalStore — the server (and the client's first render,
+// pre-hydration) always sees null, and React reconciles to the real stored
+// value right after mount without a hydration mismatch.
+const kidFilterListeners = new Set<() => void>();
+function subscribeKidFilter(cb: () => void) {
+  kidFilterListeners.add(cb);
+  return () => kidFilterListeners.delete(cb);
+}
+function getKidFilterSnapshot(): string | null {
+  try {
+    return localStorage.getItem(KID_FILTER_KEY);
+  } catch {
+    return null;
+  }
+}
+function getKidFilterServerSnapshot(): string | null {
+  return null;
+}
+function setStoredKidFilter(value: string[] | null) {
+  try {
+    if (value) localStorage.setItem(KID_FILTER_KEY, JSON.stringify(value));
+    else localStorage.removeItem(KID_FILTER_KEY);
+  } catch {
+    // private browsing / storage disabled — filter just won't persist
+  }
+  kidFilterListeners.forEach((cb) => cb());
+}
+
 export function CalendarClient({ members }: { members: MemberLite[] }) {
   const [view, setView] = useState<ViewMode>("month");
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
@@ -19,6 +50,25 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
   const [loading, setLoading] = useState(true);
   const [eventRules, setEventRules] = useState<EventRuleRecord[]>([]);
   const [showRulesEditor, setShowRulesEditor] = useState(false);
+
+  const kids = members.filter((m) => m.role === "kid");
+  // null = no filter applied (show everyone); persisted per-browser so each
+  // kid's own device remembers "just show me" without affecting anyone else.
+  const kidFilterRaw = useSyncExternalStore(subscribeKidFilter, getKidFilterSnapshot, getKidFilterServerSnapshot);
+  const kidFilter = useMemo<string[] | null>(() => {
+    if (!kidFilterRaw) return null;
+    try {
+      return JSON.parse(kidFilterRaw);
+    } catch {
+      return null;
+    }
+  }, [kidFilterRaw]);
+
+  function toggleKidFilter(kidId: string) {
+    const active = kidFilter ?? kids.map((k) => k.id);
+    const next = active.includes(kidId) ? active.filter((id) => id !== kidId) : [...active, kidId];
+    setStoredKidFilter(next.length === kids.length ? null : next);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +126,9 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
         const en = e.end ? new Date(e.end) : s;
         return s <= addDays(day, 1) && en >= day;
       })
+      // Family-wide events (no kid tagged) always show through the filter —
+      // only events tied to specific kids get narrowed down.
+      .filter((e) => !kidFilter || e.kidIds.length === 0 || e.kidIds.some((id) => kidFilter.includes(id)))
       .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
   }
 
@@ -122,6 +175,35 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
           </div>
         </div>
       </div>
+
+      {kids.length > 1 && (
+        <div className="flex flex-wrap items-center gap-1.5">
+          {kids.map((k) => {
+            const active = !kidFilter || kidFilter.includes(k.id);
+            return (
+              <button
+                key={k.id}
+                onClick={() => toggleKidFilter(k.id)}
+                className="flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold"
+                style={{
+                  borderColor: active ? k.color : "var(--border)",
+                  background: active ? k.color : "transparent",
+                  color: active ? "#fff" : "var(--text-muted)",
+                  opacity: active ? 1 : 0.6,
+                }}
+              >
+                <span
+                  className="flex h-4 w-4 items-center justify-center rounded-full text-[9px] font-bold"
+                  style={{ background: active ? "rgba(255,255,255,0.3)" : k.color, color: active ? "#fff" : "#fff" }}
+                >
+                  {k.name.slice(0, 1)}
+                </span>
+                {k.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="flex items-center justify-between">
         <button onClick={() => step(-1)} className="rounded p-1.5" style={{ color: "var(--text-muted)" }}>
