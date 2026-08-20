@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Plus, Trash2, Pencil, Car, X, RefreshCw } from "lucide-react";
 
 type Kid = { id: string; name: string; color: string };
@@ -207,26 +207,63 @@ export function IcsFeedsSection({
   );
 }
 
+type PreviewState =
+  | { status: "idle" }
+  | { status: "loading" }
+  | { status: "error"; message: string }
+  | { status: "done"; matchCount: number; totalEvents: number; matches: { summary: string; start: string }[] };
+
 function KeywordList({
   label,
   hint,
   placeholder,
   keywords,
   onChange,
+  feedUrl,
 }: {
   label: string;
   hint: string;
   placeholder: string;
   keywords: string[];
   onChange: (next: string[]) => void;
+  feedUrl: string;
 }) {
   const [draft, setDraft] = useState("");
+  const [preview, setPreview] = useState<PreviewState>({ status: "idle" });
+
+  useEffect(() => {
+    const query = draft.trim();
+    if (!query || !feedUrl.trim()) return;
+
+    const timer = setTimeout(async () => {
+      setPreview({ status: "loading" });
+      try {
+        const res = await fetch("/api/ics-feeds/preview-filter", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: feedUrl, query }),
+        });
+        const data = await res.json();
+        if (!res.ok) setPreview({ status: "error", message: data.error ?? "Couldn't check that feed" });
+        else setPreview({ status: "done", matchCount: data.matchCount, totalEvents: data.totalEvents, matches: data.matches });
+      } catch {
+        setPreview({ status: "error", message: "Couldn't reach that feed" });
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [draft, feedUrl]);
+
+  // Hide stale/previous results the moment the box is cleared, without a
+  // synchronous setState in the effect above — `preview` itself just keeps
+  // its last value until the next debounced query resolves.
+  const showPreview = draft.trim().length > 0 && feedUrl.trim().length > 0;
 
   function add() {
     const phrase = draft.trim();
     if (!phrase || keywords.includes(phrase)) return;
     onChange([...keywords, phrase]);
     setDraft("");
+    setPreview({ status: "idle" });
   }
 
   return (
@@ -273,6 +310,27 @@ function KeywordList({
           Add
         </button>
       </div>
+
+      {showPreview && preview.status === "loading" && (
+        <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+          Checking the feed…
+        </p>
+      )}
+      {showPreview && preview.status === "error" && (
+        <p className="mt-1 text-[11px]" style={{ color: "var(--danger)" }}>
+          {preview.message}
+        </p>
+      )}
+      {showPreview && preview.status === "done" && (
+        <div className="mt-1 text-[11px]" style={{ color: preview.matchCount > 0 ? "var(--accent)" : "var(--text-muted)" }}>
+          {preview.matchCount === 0
+            ? `No matches in the ${preview.totalEvents} upcoming event(s) on this feed — try different words.`
+            : `Matches ${preview.matchCount} of ${preview.totalEvents} event(s): ${preview.matches.map((m) => m.summary).join(", ")}${
+                preview.matchCount > preview.matches.length ? "…" : ""
+              }`}
+        </div>
+      )}
+
       <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
         {hint}
       </p>
@@ -381,10 +439,11 @@ function FeedForm({
           </p>
           <KeywordList
             label="Skip anything containing"
-            hint='Type a word or phrase from the events you don’t want, like "Davis Center" — matched against the title, location, and description.'
-            placeholder="e.g. Davis Center"
+            hint='Describe it in your own words, like "Tuesday nights at Davis Center" — matched loosely against the title, location, and description, so it doesn’t need to be exact.'
+            placeholder="e.g. Tuesday nights at Davis Center"
             keywords={skipKeywords}
             onChange={setSkipKeywords}
+            feedUrl={url}
           />
           <KeywordList
             label="Only include events containing"
@@ -392,6 +451,7 @@ function FeedForm({
             placeholder="e.g. 5th Grade"
             keywords={onlyKeywords}
             onChange={setOnlyKeywords}
+            feedUrl={url}
           />
         </div>
       )}
