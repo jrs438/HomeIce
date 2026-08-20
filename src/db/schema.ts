@@ -195,6 +195,13 @@ export const icsFeeds = pgTable("ics_feeds", {
   // block-out overlays, not real family events.
   needsDropoff: boolean("needs_dropoff").notNull().default(false),
   needsPickup: boolean("needs_pickup").notNull().default(false),
+  // Free-text phrases matched (case-insensitively) against each incoming
+  // event's title/location/description. skipKeywords excludes anything that
+  // matches; onlyKeywords, if non-empty, requires a match to be included at
+  // all — both apply every poll, so an event that starts matching a rule
+  // added after it was already imported gets cancelled on the next poll too.
+  skipKeywords: text("skip_keywords").array().notNull().default([]),
+  onlyKeywords: text("only_keywords").array().notNull().default([]),
   lastPolled: timestamp("last_polled"),
   active: boolean("active").notNull().default(true),
   createdAt: timestamp("created_at").notNull().defaultNow(),

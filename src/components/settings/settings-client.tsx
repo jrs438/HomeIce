@@ -37,6 +37,8 @@ type IcsFeed = {
   kidIds: string[];
   needsDropoff: boolean;
   needsPickup: boolean;
+  skipKeywords: string[];
+  onlyKeywords: string[];
   active: boolean;
 };
 

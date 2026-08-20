@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Trash2, Pencil, Car } from "lucide-react";
+import { Plus, Trash2, Pencil, Car, X, RefreshCw } from "lucide-react";
 
 type Kid = { id: string; name: string; color: string };
 type IcsFeed = {
@@ -12,10 +12,20 @@ type IcsFeed = {
   kidIds: string[];
   needsDropoff: boolean;
   needsPickup: boolean;
+  skipKeywords: string[];
+  onlyKeywords: string[];
   active: boolean;
 };
 
 type FeedDraft = Omit<IcsFeed, "id" | "active">;
+
+type SyncResult = {
+  created: number;
+  updated: number;
+  skipped: number;
+  ridesCreated: number;
+  errors: string[];
+};
 
 export function IcsFeedsSection({
   initial,
@@ -29,6 +39,8 @@ export function IcsFeedsSection({
   const [feeds, setFeeds] = useState(initial);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
 
   async function create(draft: FeedDraft) {
     const res = await fetch("/api/ics-feeds", {
@@ -61,22 +73,56 @@ export function IcsFeedsSection({
     if (res.ok) setFeeds((prev) => prev.filter((f) => f.id !== id));
   }
 
+  async function syncNow() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch("/api/ics-feeds/poll", { method: "POST" });
+      const data = await res.json();
+      setSyncResult(data);
+      const refreshed = await fetch("/api/ics-feeds").then((r) => r.json());
+      setFeeds(refreshed);
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   return (
     <section className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
           Calendar feeds (ICS)
         </h2>
-        {isAdmin && (
-          <button
-            onClick={() => setAdding(true)}
-            className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium"
-            style={{ borderColor: "var(--border)" }}
-          >
-            <Plus size={14} /> Add
-          </button>
-        )}
+        <div className="flex gap-1.5">
+          {feeds.length > 0 && (
+            <button
+              onClick={syncNow}
+              disabled={syncing}
+              className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium disabled:opacity-50"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <RefreshCw size={14} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync now"}
+            </button>
+          )}
+          {isAdmin && (
+            <button
+              onClick={() => setAdding(true)}
+              className="flex items-center gap-1 rounded-md border px-2 py-1 text-xs font-medium"
+              style={{ borderColor: "var(--border)" }}
+            >
+              <Plus size={14} /> Add
+            </button>
+          )}
+        </div>
       </div>
+
+      {syncResult && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          {syncResult.created} new, {syncResult.skipped} skipped by filter, {syncResult.updated} updated
+          {syncResult.ridesCreated ? `, ${syncResult.ridesCreated} ride(s) created` : ""}.
+          {syncResult.errors.length > 0 && ` Errors: ${syncResult.errors.join("; ")}`}
+        </p>
+      )}
 
       <ul className="flex flex-col gap-2">
         {feeds.map((f) =>
@@ -117,6 +163,13 @@ export function IcsFeedsSection({
                     })}
                   </div>
                 )}
+                {f.kind !== "busy" && (f.skipKeywords.length > 0 || f.onlyKeywords.length > 0) && (
+                  <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+                    {f.skipKeywords.length > 0 && `Skipping: ${f.skipKeywords.join(", ")}`}
+                    {f.skipKeywords.length > 0 && f.onlyKeywords.length > 0 && " · "}
+                    {f.onlyKeywords.length > 0 && `Only: ${f.onlyKeywords.join(", ")}`}
+                  </p>
+                )}
               </div>
               {isAdmin && (
                 <div className="flex shrink-0 gap-1">
@@ -135,13 +188,95 @@ export function IcsFeedsSection({
 
       {adding && (
         <FeedForm
-          initial={{ url: "", label: "", kind: "events", kidIds: [], needsDropoff: false, needsPickup: false }}
+          initial={{
+            url: "",
+            label: "",
+            kind: "events",
+            kidIds: [],
+            needsDropoff: false,
+            needsPickup: false,
+            skipKeywords: [],
+            onlyKeywords: [],
+          }}
           kids={kids}
           onCancel={() => setAdding(false)}
           onSubmit={create}
         />
       )}
     </section>
+  );
+}
+
+function KeywordList({
+  label,
+  hint,
+  placeholder,
+  keywords,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  placeholder: string;
+  keywords: string[];
+  onChange: (next: string[]) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function add() {
+    const phrase = draft.trim();
+    if (!phrase || keywords.includes(phrase)) return;
+    onChange([...keywords, phrase]);
+    setDraft("");
+  }
+
+  return (
+    <div>
+      <p className="mb-1 text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
+        {label}
+      </p>
+      {keywords.length > 0 && (
+        <div className="mb-1.5 flex flex-wrap gap-1.5">
+          {keywords.map((kw) => (
+            <span
+              key={kw}
+              className="flex items-center gap-1 rounded-full px-2 py-0.5 text-xs"
+              style={{ background: "var(--bg)", border: "1px solid var(--border)" }}
+            >
+              {kw}
+              <button type="button" onClick={() => onChange(keywords.filter((k) => k !== kw))} aria-label={`Remove ${kw}`}>
+                <X size={12} />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-1.5">
+        <input
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              add();
+            }
+          }}
+          placeholder={placeholder}
+          className="w-0 flex-1 rounded-md border px-2.5 py-1.5 text-xs"
+          style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+        />
+        <button
+          type="button"
+          onClick={add}
+          className="rounded-md border px-2.5 py-1.5 text-xs font-semibold"
+          style={{ borderColor: "var(--border)" }}
+        >
+          Add
+        </button>
+      </div>
+      <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+        {hint}
+      </p>
+    </div>
   );
 }
 
@@ -162,6 +297,8 @@ function FeedForm({
   const [kidIds, setKidIds] = useState<string[]>(initial.kidIds);
   const [needsDropoff, setNeedsDropoff] = useState(initial.needsDropoff);
   const [needsPickup, setNeedsPickup] = useState(initial.needsPickup);
+  const [skipKeywords, setSkipKeywords] = useState<string[]>(initial.skipKeywords);
+  const [onlyKeywords, setOnlyKeywords] = useState<string[]>(initial.onlyKeywords);
 
   function toggleKid(id: string) {
     setKidIds((prev) => (prev.includes(id) ? prev.filter((k) => k !== id) : [...prev, id]));
@@ -237,9 +374,31 @@ function FeedForm({
         </div>
       )}
 
+      {kind === "events" && (
+        <div className="flex flex-col gap-3 rounded-md border p-2" style={{ borderColor: "var(--border)" }}>
+          <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
+            Filter what comes in
+          </p>
+          <KeywordList
+            label="Skip anything containing"
+            hint='Type a word or phrase from the events you don’t want, like "Davis Center" — matched against the title, location, and description.'
+            placeholder="e.g. Davis Center"
+            keywords={skipKeywords}
+            onChange={setSkipKeywords}
+          />
+          <KeywordList
+            label="Only include events containing"
+            hint='Leave empty to bring in everything (minus what’s skipped above). Add a phrase like "5th Grade" to only pull in matching events.'
+            placeholder="e.g. 5th Grade"
+            keywords={onlyKeywords}
+            onChange={setOnlyKeywords}
+          />
+        </div>
+      )}
+
       <div className="flex gap-2">
         <button
-          onClick={() => onSubmit({ label, url, kind, kidIds, needsDropoff, needsPickup })}
+          onClick={() => onSubmit({ label, url, kind, kidIds, needsDropoff, needsPickup, skipKeywords, onlyKeywords })}
           disabled={!label || !url}
           className="rounded-md px-3 py-1.5 text-sm font-semibold disabled:opacity-50"
           style={{ background: "var(--accent)", color: "var(--accent-text)" }}

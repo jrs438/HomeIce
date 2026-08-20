@@ -13,6 +13,8 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.kind !== undefined) patch.kind = body.kind;
   if (body.needsDropoff !== undefined) patch.needsDropoff = !!body.needsDropoff;
   if (body.needsPickup !== undefined) patch.needsPickup = !!body.needsPickup;
+  if (body.skipKeywords !== undefined) patch.skipKeywords = body.skipKeywords;
+  if (body.onlyKeywords !== undefined) patch.onlyKeywords = body.onlyKeywords;
   if (body.active !== undefined) patch.active = body.active;
 
   const [updated] = await db.update(icsFeeds).set(patch).where(eq(icsFeeds.id, id)).returning();

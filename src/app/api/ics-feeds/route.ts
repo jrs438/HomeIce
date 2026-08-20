@@ -21,6 +21,8 @@ export async function POST(req: NextRequest) {
       kind: body.kind ?? "events",
       needsDropoff: !!body.needsDropoff,
       needsPickup: !!body.needsPickup,
+      skipKeywords: body.skipKeywords ?? [],
+      onlyKeywords: body.onlyKeywords ?? [],
     })
     .returning();
   return NextResponse.json(created, { status: 201 });
