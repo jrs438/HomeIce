@@ -12,6 +12,7 @@ export type IcsPollResult = {
   created: number;
   updated: number;
   skipped: number;
+  restored: number;
   flaggedRides: number;
   ridesCreated: number;
   feedsPolled: number;
@@ -71,11 +72,50 @@ function passesFilters(item: ParsedIcsEvent, feed: typeof icsFeeds.$inferSelect)
   return true;
 }
 
-async function cancelEventAndRides(eventId: string) {
+async function cancelEventAndRides(eventId: string, filteredOut: boolean) {
   const linkedRides = await db.query.rides.findMany({ where: eq(rides.eventId, eventId) });
   for (const ride of linkedRides) await notifyRideCancelled(ride);
   if (linkedRides.length) await db.delete(rides).where(eq(rides.eventId, eventId));
-  await db.update(events).set({ status: "cancelled" }).where(eq(events.id, eventId));
+  await db.update(events).set({ status: "cancelled", filteredOut }).where(eq(events.id, eventId));
+}
+
+async function createRidesForEvent(
+  feed: typeof icsFeeds.$inferSelect,
+  eventId: string,
+  item: ParsedIcsEvent
+): Promise<number> {
+  if (feed.kind === "busy" || (!feed.needsDropoff && !feed.needsPickup)) return 0;
+  const place = item.location || feed.label;
+  let count = 0;
+  if (feed.needsDropoff) {
+    const { date, time } = utcToZonedParts(item.start, FAMILY_TIMEZONE);
+    await db.insert(rides).values({
+      eventId,
+      date,
+      time,
+      kind: "activity_dropoff",
+      kidIds: feed.kidIds,
+      from: "Home",
+      to: place,
+      driverType: "unassigned",
+    });
+    count++;
+  }
+  if (feed.needsPickup) {
+    const { date, time } = utcToZonedParts(item.end ?? item.start, FAMILY_TIMEZONE);
+    await db.insert(rides).values({
+      eventId,
+      date,
+      time,
+      kind: "activity_pickup",
+      kidIds: feed.kidIds,
+      from: place,
+      to: "Home",
+      driverType: "unassigned",
+    });
+    count++;
+  }
+  return count;
 }
 
 export async function pollIcsFeeds(): Promise<IcsPollResult> {
@@ -83,6 +123,7 @@ export async function pollIcsFeeds(): Promise<IcsPollResult> {
   let created = 0;
   let updated = 0;
   let skipped = 0;
+  let restored = 0;
   let flaggedRides = 0;
   let ridesCreated = 0;
   const errors: string[] = [];
@@ -124,38 +165,7 @@ export async function pollIcsFeeds(): Promise<IcsPollResult> {
             })
             .returning();
           created++;
-
-          if (feed.kind !== "busy" && (feed.needsDropoff || feed.needsPickup)) {
-            const place = item.location || feed.label;
-            if (feed.needsDropoff) {
-              const { date, time } = utcToZonedParts(item.start, FAMILY_TIMEZONE);
-              await db.insert(rides).values({
-                eventId: createdEvent.id,
-                date,
-                time,
-                kind: "activity_dropoff",
-                kidIds: feed.kidIds,
-                from: "Home",
-                to: place,
-                driverType: "unassigned",
-              });
-              ridesCreated++;
-            }
-            if (feed.needsPickup) {
-              const { date, time } = utcToZonedParts(item.end ?? item.start, FAMILY_TIMEZONE);
-              await db.insert(rides).values({
-                eventId: createdEvent.id,
-                date,
-                time,
-                kind: "activity_pickup",
-                kidIds: feed.kidIds,
-                from: place,
-                to: "Home",
-                driverType: "unassigned",
-              });
-              ridesCreated++;
-            }
-          }
+          ridesCreated += await createRidesForEvent(feed, createdEvent.id, item);
           continue;
         }
 
@@ -163,13 +173,37 @@ export async function pollIcsFeeds(): Promise<IcsPollResult> {
         // upstream item itself was cancelled) — clean it up the same way
         // either way, so a new "skip Davis Center" rule retroactively
         // removes anything already sitting on the calendar, not just future
-        // imports.
+        // imports. Only mark filteredOut when our own filter is the cause
+        // (not an upstream cancellation), so a later poll can tell it apart
+        // from an event cancelled for any other reason and safely restore it.
         if (item.cancelled || !passesFilter) {
           if (existing.status !== "cancelled") {
-            await cancelEventAndRides(existing.id);
+            await cancelEventAndRides(existing.id, !item.cancelled && !passesFilter);
             updated++;
             if (!passesFilter && !item.cancelled) skipped++;
           }
+          continue;
+        }
+
+        // The event was previously cancelled by a filter rule that no longer
+        // applies (e.g. the skip phrase was removed or loosened) — bring it
+        // back, including recreating any ride the feed calls for. Anything
+        // cancelled upstream or by hand (filteredOut false) is left alone.
+        if (existing.status === "cancelled" && existing.filteredOut) {
+          await db
+            .update(events)
+            .set({
+              status: "confirmed",
+              filteredOut: false,
+              title,
+              start: item.start,
+              end: item.end,
+              location: item.location,
+              updatedAt: new Date(),
+            })
+            .where(eq(events.id, existing.id));
+          ridesCreated += await createRidesForEvent(feed, existing.id, item);
+          restored++;
           continue;
         }
 
@@ -205,5 +239,5 @@ export async function pollIcsFeeds(): Promise<IcsPollResult> {
     }
   }
 
-  return { ok: true, created, updated, skipped, flaggedRides, ridesCreated, feedsPolled: feeds.length, errors };
+  return { ok: true, created, updated, skipped, restored, flaggedRides, ridesCreated, feedsPolled: feeds.length, errors };
 }

@@ -23,6 +23,7 @@ type SyncResult = {
   created: number;
   updated: number;
   skipped: number;
+  restored: number;
   ridesCreated: number;
   errors: string[];
 };
@@ -119,6 +120,7 @@ export function IcsFeedsSection({
       {syncResult && (
         <p className="text-xs" style={{ color: "var(--text-muted)" }}>
           {syncResult.created} new, {syncResult.skipped} skipped by filter, {syncResult.updated} updated
+          {syncResult.restored ? `, ${syncResult.restored} restored` : ""}
           {syncResult.ridesCreated ? `, ${syncResult.ridesCreated} ride(s) created` : ""}.
           {syncResult.errors.length > 0 && ` Errors: ${syncResult.errors.join("; ")}`}
         </p>

@@ -73,6 +73,12 @@ export const events = pgTable("events", {
   icsUid: text("ics_uid"),
   status: eventStatusEnum("status").notNull().default("confirmed"),
   notes: text("notes"),
+  // True only when an ICS feed's skip/only filter is what cancelled this
+  // event (as opposed to the source calendar cancelling it, or a family
+  // member manually cancelling it) — lets a poll safely auto-restore it if
+  // the filter rule that excluded it is later removed, without ever
+  // reviving something cancelled for a different reason.
+  filteredOut: boolean("filtered_out").notNull().default(false),
   createdAt: timestamp("created_at").notNull().defaultNow(),
   updatedAt: timestamp("updated_at").notNull().defaultNow(),
 });
