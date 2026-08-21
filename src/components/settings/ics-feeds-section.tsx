@@ -44,6 +44,7 @@ export function IcsFeedsSection({
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
   const [deletingFeed, setDeletingFeed] = useState<IcsFeed | null>(null);
+  const [showClearAll, setShowClearAll] = useState(false);
 
   async function create(draft: FeedDraft) {
     const res = await fetch("/api/ics-feeds", {
@@ -217,6 +218,16 @@ export function IcsFeedsSection({
 
       {feeds.length > 0 && <CancelledEventsList />}
 
+      {isAdmin && (
+        <button
+          onClick={() => setShowClearAll(true)}
+          className="self-start text-[11px] font-medium underline"
+          style={{ color: "var(--danger)" }}
+        >
+          Clear all imported calendar events (every feed)
+        </button>
+      )}
+
       {deletingFeed && (
         <DeleteFeedModal
           feed={deletingFeed}
@@ -225,7 +236,79 @@ export function IcsFeedsSection({
           onPurge={() => purge(deletingFeed.id)}
         />
       )}
+
+      {showClearAll && <ClearAllModal onClose={() => setShowClearAll(false)} />}
     </section>
+  );
+}
+
+function ClearAllModal({ onClose }: { onClose: () => void }) {
+  const [confirmText, setConfirmText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ eventsDeleted: number } | null>(null);
+
+  async function clearAll() {
+    setBusy(true);
+    try {
+      const res = await fetch("/api/ics-feeds/clear-all-events", { method: "POST" });
+      if (res.ok) setResult(await res.json());
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal title="Clear all imported calendar events" onClose={onClose}>
+      {result ? (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm">
+            Deleted {result.eventsDeleted} event{result.eventsDeleted === 1 ? "" : "s"} (and any linked rides) across every feed —
+            including old ones from feeds you&rsquo;ve since deleted and re-added. Your feed subscriptions are still set up, so tap
+            &ldquo;Sync now&rdquo; to bring everything back in fresh.
+          </p>
+          <button
+            onClick={onClose}
+            className="self-start rounded-md px-3 py-1.5 text-sm font-semibold"
+            style={{ background: "var(--accent)", color: "var(--accent-text)" }}
+          >
+            Done
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          <p className="text-sm">
+            This deletes <strong>every event ever imported from any calendar feed</strong> — confirmed and cancelled, across every feed
+            you&rsquo;ve ever set up, including old versions of feeds you&rsquo;ve since deleted and re-added. Any linked ride goes with
+            it. Your feed subscriptions themselves stay in place, so a sync afterward brings everything back in fresh.
+          </p>
+          <p className="text-sm font-semibold" style={{ color: "var(--danger)" }}>
+            This can&rsquo;t be undone.
+          </p>
+          <label className="flex flex-col gap-1 text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+            Type DELETE to confirm
+            <input
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              className="rounded-md border px-3 py-2 text-sm"
+              style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+            />
+          </label>
+          <div className="flex gap-2">
+            <button
+              onClick={clearAll}
+              disabled={confirmText !== "DELETE" || busy}
+              className="rounded-md px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              style={{ background: "var(--danger)" }}
+            >
+              {busy ? "Clearing…" : "Clear everything"}
+            </button>
+            <button onClick={onClose} disabled={busy} className="rounded-md border px-3 py-1.5 text-sm" style={{ borderColor: "var(--border)" }}>
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
