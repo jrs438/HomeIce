@@ -79,7 +79,7 @@ async function cancelEventAndRides(eventId: string, filteredOut: boolean) {
   await db.update(events).set({ status: "cancelled", filteredOut }).where(eq(events.id, eventId));
 }
 
-async function createRidesForEvent(
+export async function createRidesForEvent(
   feed: typeof icsFeeds.$inferSelect,
   eventId: string,
   item: ParsedIcsEvent

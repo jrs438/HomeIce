@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Plus, Trash2, Pencil, Car, X, RefreshCw } from "lucide-react";
+import { Plus, Trash2, Pencil, Car, X, RefreshCw, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
 
 type Kid = { id: string; name: string; color: string };
 type IcsFeed = {
@@ -131,59 +131,7 @@ export function IcsFeedsSection({
           editingId === f.id ? (
             <FeedForm key={f.id} initial={f} kids={kids} onCancel={() => setEditingId(null)} onSubmit={(draft) => save(f.id, draft)} />
           ) : (
-            <li
-              key={f.id}
-              className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2"
-              style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
-            >
-              <div className="min-w-0">
-                <p className="text-sm font-semibold">{f.label}</p>
-                <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
-                  {f.kind === "busy" ? "Busy overlay" : "Events"}
-                  {f.kind !== "busy" && (f.needsDropoff || f.needsPickup) && (
-                    <>
-                      {" · "}
-                      <Car size={11} className="inline -mt-0.5" />{" "}
-                      {[f.needsDropoff && "drop-off", f.needsPickup && "pick-up"].filter(Boolean).join(" + ")} needed
-                    </>
-                  )}
-                </p>
-                {f.kind !== "busy" && f.kidIds.length > 0 && (
-                  <div className="mt-1 flex flex-wrap gap-1">
-                    {f.kidIds.map((kidId) => {
-                      const kid = kids.find((k) => k.id === kidId);
-                      if (!kid) return null;
-                      return (
-                        <span
-                          key={kidId}
-                          className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white"
-                          style={{ background: kid.color }}
-                        >
-                          {kid.name}
-                        </span>
-                      );
-                    })}
-                  </div>
-                )}
-                {f.kind !== "busy" && (f.skipKeywords.length > 0 || f.onlyKeywords.length > 0) && (
-                  <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
-                    {f.skipKeywords.length > 0 && `Skipping: ${f.skipKeywords.join(", ")}`}
-                    {f.skipKeywords.length > 0 && f.onlyKeywords.length > 0 && " · "}
-                    {f.onlyKeywords.length > 0 && `Only: ${f.onlyKeywords.join(", ")}`}
-                  </p>
-                )}
-              </div>
-              {isAdmin && (
-                <div className="flex shrink-0 gap-1">
-                  <button onClick={() => setEditingId(f.id)} className="rounded p-1.5" style={{ color: "var(--text-muted)" }}>
-                    <Pencil size={16} />
-                  </button>
-                  <button onClick={() => remove(f.id)} className="rounded p-1.5" style={{ color: "var(--danger)" }}>
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              )}
-            </li>
+            <FeedRow key={f.id} feed={f} kids={kids} isAdmin={isAdmin} onEdit={() => setEditingId(f.id)} onRemove={() => remove(f.id)} />
           )
         )}
       </ul>
@@ -206,6 +154,142 @@ export function IcsFeedsSection({
         />
       )}
     </section>
+  );
+}
+
+type CancelledEvent = { id: string; title: string; start: string; location: string | null };
+
+function FeedRow({
+  feed,
+  kids,
+  isAdmin,
+  onEdit,
+  onRemove,
+}: {
+  feed: IcsFeed;
+  kids: Kid[];
+  isAdmin: boolean;
+  onEdit: () => void;
+  onRemove: () => void;
+}) {
+  const [showCancelled, setShowCancelled] = useState(false);
+  const [cancelled, setCancelled] = useState<CancelledEvent[] | null>(null);
+  const [loadingCancelled, setLoadingCancelled] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+
+  async function toggleCancelled() {
+    const next = !showCancelled;
+    setShowCancelled(next);
+    if (next && cancelled === null) {
+      setLoadingCancelled(true);
+      try {
+        const data = await fetch(`/api/ics-feeds/${feed.id}/cancelled`).then((r) => r.json());
+        setCancelled(data);
+      } finally {
+        setLoadingCancelled(false);
+      }
+    }
+  }
+
+  async function restore(eventId: string) {
+    setRestoringId(eventId);
+    try {
+      const res = await fetch(`/api/ics-feeds/${feed.id}/cancelled/${eventId}/restore`, { method: "POST" });
+      if (res.ok) setCancelled((prev) => (prev ? prev.filter((e) => e.id !== eventId) : prev));
+    } finally {
+      setRestoringId(null);
+    }
+  }
+
+  return (
+    <li className="flex flex-col gap-2 rounded-lg border px-3 py-2" style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold">{feed.label}</p>
+          <p className="truncate text-xs" style={{ color: "var(--text-muted)" }}>
+            {feed.kind === "busy" ? "Busy overlay" : "Events"}
+            {feed.kind !== "busy" && (feed.needsDropoff || feed.needsPickup) && (
+              <>
+                {" · "}
+                <Car size={11} className="inline -mt-0.5" />{" "}
+                {[feed.needsDropoff && "drop-off", feed.needsPickup && "pick-up"].filter(Boolean).join(" + ")} needed
+              </>
+            )}
+          </p>
+          {feed.kind !== "busy" && feed.kidIds.length > 0 && (
+            <div className="mt-1 flex flex-wrap gap-1">
+              {feed.kidIds.map((kidId) => {
+                const kid = kids.find((k) => k.id === kidId);
+                if (!kid) return null;
+                return (
+                  <span key={kidId} className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ background: kid.color }}>
+                    {kid.name}
+                  </span>
+                );
+              })}
+            </div>
+          )}
+          {feed.kind !== "busy" && (feed.skipKeywords.length > 0 || feed.onlyKeywords.length > 0) && (
+            <p className="mt-1 text-[11px]" style={{ color: "var(--text-muted)" }}>
+              {feed.skipKeywords.length > 0 && `Skipping: ${feed.skipKeywords.join(", ")}`}
+              {feed.skipKeywords.length > 0 && feed.onlyKeywords.length > 0 && " · "}
+              {feed.onlyKeywords.length > 0 && `Only: ${feed.onlyKeywords.join(", ")}`}
+            </p>
+          )}
+        </div>
+        {isAdmin && (
+          <div className="flex shrink-0 gap-1">
+            <button onClick={onEdit} className="rounded p-1.5" style={{ color: "var(--text-muted)" }}>
+              <Pencil size={16} />
+            </button>
+            <button onClick={onRemove} className="rounded p-1.5" style={{ color: "var(--danger)" }}>
+              <Trash2 size={16} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {feed.kind !== "busy" && (
+        <button
+          onClick={toggleCancelled}
+          className="flex items-center gap-1 self-start text-[11px] font-medium"
+          style={{ color: "var(--text-muted)" }}
+        >
+          {showCancelled ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+          Cancelled events{cancelled ? ` (${cancelled.length})` : ""}
+        </button>
+      )}
+
+      {showCancelled && (
+        <div className="flex flex-col gap-1.5 rounded-md border p-2" style={{ borderColor: "var(--border)" }}>
+          {loadingCancelled && (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              Loading…
+            </p>
+          )}
+          {!loadingCancelled && cancelled?.length === 0 && (
+            <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+              Nothing cancelled from this feed.
+            </p>
+          )}
+          {cancelled?.map((e) => (
+            <div key={e.id} className="flex items-center justify-between gap-2 text-xs">
+              <span className="truncate">
+                {e.title} — {new Date(e.start).toLocaleDateString()}
+              </span>
+              <button
+                onClick={() => restore(e.id)}
+                disabled={restoringId === e.id}
+                className="flex shrink-0 items-center gap-1 rounded-md border px-2 py-1 font-semibold disabled:opacity-50"
+                style={{ borderColor: "var(--border)" }}
+              >
+                <RotateCcw size={11} /> {restoringId === e.id ? "Restoring…" : "Restore"}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+    </li>
   );
 }
 
