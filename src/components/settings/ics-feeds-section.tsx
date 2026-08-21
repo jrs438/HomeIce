@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { Plus, Trash2, Pencil, Car, X, RefreshCw, RotateCcw, ChevronDown, ChevronUp } from "lucide-react";
+import { Modal } from "@/components/modal";
 
 type Kid = { id: string; name: string; color: string };
 type IcsFeed = {
@@ -42,6 +43,7 @@ export function IcsFeedsSection({
   const [adding, setAdding] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<SyncResult | null>(null);
+  const [deletingFeed, setDeletingFeed] = useState<IcsFeed | null>(null);
 
   async function create(draft: FeedDraft) {
     const res = await fetch("/api/ics-feeds", {
@@ -69,10 +71,16 @@ export function IcsFeedsSection({
     setEditingId(null);
   }
 
-  async function remove(id: string) {
-    if (!confirm("Remove this feed? Events it already imported stay on your calendar — this only stops future syncing.")) return;
+  async function removeKeepEvents(id: string) {
     const res = await fetch(`/api/ics-feeds/${id}`, { method: "DELETE" });
     if (res.ok) setFeeds((prev) => prev.filter((f) => f.id !== id));
+    setDeletingFeed(null);
+  }
+
+  async function purge(id: string) {
+    const res = await fetch(`/api/ics-feeds/${id}/purge`, { method: "POST" });
+    if (res.ok) setFeeds((prev) => prev.filter((f) => f.id !== id));
+    setDeletingFeed(null);
   }
 
   async function syncNow() {
@@ -179,7 +187,7 @@ export function IcsFeedsSection({
                   <button onClick={() => setEditingId(f.id)} className="rounded p-1.5" style={{ color: "var(--text-muted)" }}>
                     <Pencil size={16} />
                   </button>
-                  <button onClick={() => remove(f.id)} className="rounded p-1.5" style={{ color: "var(--danger)" }}>
+                  <button onClick={() => setDeletingFeed(f)} className="rounded p-1.5" style={{ color: "var(--danger)" }}>
                     <Trash2 size={16} />
                   </button>
                 </div>
@@ -208,7 +216,73 @@ export function IcsFeedsSection({
       )}
 
       {feeds.length > 0 && <CancelledEventsList />}
+
+      {deletingFeed && (
+        <DeleteFeedModal
+          feed={deletingFeed}
+          onClose={() => setDeletingFeed(null)}
+          onKeepEvents={() => removeKeepEvents(deletingFeed.id)}
+          onPurge={() => purge(deletingFeed.id)}
+        />
+      )}
     </section>
+  );
+}
+
+function DeleteFeedModal({
+  feed,
+  onClose,
+  onKeepEvents,
+  onPurge,
+}: {
+  feed: IcsFeed;
+  onClose: () => void;
+  onKeepEvents: () => void;
+  onPurge: () => void;
+}) {
+  const [busy, setBusy] = useState<"keep" | "purge" | null>(null);
+
+  return (
+    <Modal title={`Remove "${feed.label}"`} onClose={onClose}>
+      <div className="flex flex-col gap-3">
+        <button
+          onClick={async () => {
+            setBusy("keep");
+            await onKeepEvents();
+          }}
+          disabled={busy !== null}
+          className="flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left disabled:opacity-50"
+          style={{ borderColor: "var(--border)" }}
+        >
+          <span className="text-sm font-semibold">{busy === "keep" ? "Removing…" : "Just stop syncing"}</span>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            Removes the feed subscription. Everything it already imported — confirmed and cancelled — stays on your calendar.
+          </span>
+        </button>
+
+        <button
+          onClick={async () => {
+            setBusy("purge");
+            await onPurge();
+          }}
+          disabled={busy !== null}
+          className="flex flex-col items-start gap-0.5 rounded-lg border p-3 text-left disabled:opacity-50"
+          style={{ borderColor: "var(--danger)", background: "var(--danger)" }}
+        >
+          <span className="text-sm font-semibold" style={{ color: "#fff" }}>
+            {busy === "purge" ? "Deleting…" : "Delete everything from this feed"}
+          </span>
+          <span className="text-xs" style={{ color: "rgba(255,255,255,0.85)" }}>
+            Also permanently deletes every event this feed ever imported (and any linked ride) — use this for a clean restart, e.g. after a
+            trial run. Can&rsquo;t be undone.
+          </span>
+        </button>
+
+        <button onClick={onClose} disabled={busy !== null} className="self-start text-xs font-medium" style={{ color: "var(--text-muted)" }}>
+          Cancel
+        </button>
+      </div>
+    </Modal>
   );
 }
 
