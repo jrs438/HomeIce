@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Modal } from "@/components/modal";
 import { Plus, Trash2, Pencil } from "lucide-react";
 import type { MemberLite } from "@/components/events/types";
 import { WEEKDAY_LABELS, ymd } from "@/lib/dates";
-import type { EventRuleRecord } from "@/components/rides/types";
+import type { EventRuleRecord, RideRuleRecord } from "@/components/rides/types";
 
 const INTERVAL_LABELS: Record<number, string> = {
   1: "Every week",
@@ -121,8 +121,41 @@ function EventRuleForm({
   const [needsPickup, setNeedsPickup] = useState(false);
   const [pickupFrom, setPickupFrom] = useState(initial?.location ?? "");
   const [pickupTo, setPickupTo] = useState("Home");
+  const [loadingRideRules, setLoadingRideRules] = useState(!!initial);
 
   const [saving, setSaving] = useState(false);
+
+  // Editing an existing recurring event — load whatever ride rule it
+  // already has (if any) so the checkboxes reflect current state instead
+  // of always starting unchecked, and so "needs a ride" can be added after
+  // the fact (e.g. for one created via photo capture, which doesn't ask).
+  useEffect(() => {
+    if (!initial) return;
+    let cancelled = false;
+    fetch("/api/ride-rules")
+      .then((r) => r.json())
+      .then((all: RideRuleRecord[]) => {
+        if (cancelled) return;
+        const dropoff = all.find((r) => r.eventRuleId === initial.id && r.kind === "activity_dropoff");
+        const pickup = all.find((r) => r.eventRuleId === initial.id && r.kind === "activity_pickup");
+        if (dropoff) {
+          setNeedsDropoff(true);
+          setDropoffFrom(dropoff.from);
+          setDropoffTo(dropoff.to);
+        }
+        if (pickup) {
+          setNeedsPickup(true);
+          setPickupFrom(pickup.from);
+          setPickupTo(pickup.to);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingRideRules(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [initial]);
 
   function toggleKid(id: string) {
     setKidIds((prev) => (prev.includes(id) ? prev.filter((k) => k !== id) : [...prev, id]));
@@ -142,8 +175,12 @@ function EventRuleForm({
         kidIds,
         notes: notes || null,
         active,
-        ...(!initial && needsDropoff ? { needsDropoff, dropoffFrom, dropoffTo } : {}),
-        ...(!initial && needsPickup ? { needsPickup, pickupFrom, pickupTo } : {}),
+        // Editing needs to be able to say "no ride" explicitly (false, not
+        // just absent) so the server knows to remove an existing ride rule
+        // when a box gets unchecked — creating has nothing to remove yet,
+        // so it only sends the key when actually turning one on.
+        ...(needsDropoff ? { needsDropoff, dropoffFrom, dropoffTo } : initial ? { needsDropoff: false } : {}),
+        ...(needsPickup ? { needsPickup, pickupFrom, pickupTo } : initial ? { needsPickup: false } : {}),
       };
       const res = await fetch(initial ? `/api/event-rules/${initial.id}` : "/api/event-rules", {
         method: initial ? "PATCH" : "POST",
@@ -261,7 +298,13 @@ function EventRuleForm({
         style={{ borderColor: "var(--border)", background: "var(--bg)" }}
       />
 
-      {!initial && kidIds.length > 0 && (
+      {kidIds.length > 0 && loadingRideRules && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          Loading ride settings…
+        </p>
+      )}
+
+      {kidIds.length > 0 && !loadingRideRules && (
         <div className="rounded-md border p-2" style={{ borderColor: "var(--border)" }}>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
             Rides (recurring, same schedule)

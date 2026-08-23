@@ -3,6 +3,27 @@ import { db } from "@/db";
 import { eventRules, events, rides, rideRules } from "@/db/schema";
 import { eq, and, gte } from "drizzle-orm";
 import { notifyRideCancelled } from "@/lib/ride-notify";
+import { startOfWeek, addDays, ymd } from "@/lib/dates";
+import { generateEventsForWeek } from "@/lib/generate-events";
+import { generateRidesForWeek } from "@/lib/generate-rides";
+
+const WEEKS_AHEAD = 4;
+
+// Deletes a linked ride_rule and cancels/removes any not-yet-happened ride
+// it already generated — used when a drop-off/pick-up leg is turned off on
+// an existing recurring event, mirroring the cleanup DELETE below does for
+// the whole series.
+async function removeRideRuleAndFutureRides(rule: typeof rideRules.$inferSelect) {
+  const today = ymd(new Date());
+  const matchingRides = await db.query.rides.findMany({
+    where: and(eq(rides.kind, rule.kind), eq(rides.from, rule.from), eq(rides.to, rule.to), gte(rides.date, today)),
+  });
+  for (const r of matchingRides) await notifyRideCancelled(r);
+  if (matchingRides.length) {
+    await db.delete(rides).where(and(eq(rides.kind, rule.kind), eq(rides.from, rule.from), eq(rides.to, rule.to), gte(rides.date, today)));
+  }
+  await db.delete(rideRules).where(eq(rideRules.id, rule.id));
+}
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,8 +41,101 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.notes !== undefined) patch.notes = body.notes || null;
   if (body.active !== undefined) patch.active = body.active;
 
-  const [updated] = await db.update(eventRules).set(patch).where(eq(eventRules.id, id)).returning();
+  // A PATCH that only touches the linked ride rule (e.g. adding a "needs a
+  // ride" leg without changing anything else about the recurring event)
+  // leaves patch empty, and drizzle rejects an empty .set({}) — so skip the
+  // update entirely and just read the current row back in that case.
+  const updated = Object.keys(patch).length
+    ? (await db.update(eventRules).set(patch).where(eq(eventRules.id, id)).returning())[0]
+    : await db.query.eventRules.findFirst({ where: eq(eventRules.id, id) });
   if (!updated) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  // Ride needs can now be added, changed, or removed after the fact — not
+  // just set at creation — so a recurring event that came in without one
+  // (e.g. via photo capture) can get one added later.
+  if (body.needsDropoff !== undefined || body.needsPickup !== undefined) {
+    const linked = await db.query.rideRules.findMany({ where: eq(rideRules.eventRuleId, id) });
+
+    if (body.needsDropoff !== undefined) {
+      const existing = linked.find((r) => r.kind === "activity_dropoff");
+      if (body.needsDropoff && body.dropoffFrom && body.dropoffTo) {
+        if (existing) {
+          await db
+            .update(rideRules)
+            .set({
+              dayOfWeek: updated.dayOfWeek,
+              intervalWeeks: updated.intervalWeeks,
+              anchorDate: updated.anchorDate,
+              kidIds: updated.kidIds,
+              from: body.dropoffFrom,
+              to: body.dropoffTo,
+              time: updated.startTime,
+            })
+            .where(eq(rideRules.id, existing.id));
+        } else {
+          await db.insert(rideRules).values({
+            label: `${updated.title} drop-off`,
+            dayOfWeek: updated.dayOfWeek,
+            intervalWeeks: updated.intervalWeeks,
+            anchorDate: updated.anchorDate,
+            kind: "activity_dropoff",
+            kidIds: updated.kidIds,
+            from: body.dropoffFrom,
+            to: body.dropoffTo,
+            time: updated.startTime,
+            eventRuleId: id,
+          });
+        }
+      } else if (existing) {
+        await removeRideRuleAndFutureRides(existing);
+      }
+    }
+
+    if (body.needsPickup !== undefined) {
+      const existing = linked.find((r) => r.kind === "activity_pickup");
+      if (body.needsPickup && body.pickupFrom && body.pickupTo) {
+        if (existing) {
+          await db
+            .update(rideRules)
+            .set({
+              dayOfWeek: updated.dayOfWeek,
+              intervalWeeks: updated.intervalWeeks,
+              anchorDate: updated.anchorDate,
+              kidIds: updated.kidIds,
+              from: body.pickupFrom,
+              to: body.pickupTo,
+              time: updated.endTime || updated.startTime,
+            })
+            .where(eq(rideRules.id, existing.id));
+        } else {
+          await db.insert(rideRules).values({
+            label: `${updated.title} pick-up`,
+            dayOfWeek: updated.dayOfWeek,
+            intervalWeeks: updated.intervalWeeks,
+            anchorDate: updated.anchorDate,
+            kind: "activity_pickup",
+            kidIds: updated.kidIds,
+            from: body.pickupFrom,
+            to: body.pickupTo,
+            time: updated.endTime || updated.startTime,
+            eventRuleId: id,
+          });
+        }
+      } else if (existing) {
+        await removeRideRuleAndFutureRides(existing);
+      }
+    }
+
+    // Backfill: a newly-added ride need should apply to weeks that were
+    // already materialized, not just occurrences generated from now on.
+    const weekStart = startOfWeek(new Date());
+    for (let w = 0; w < WEEKS_AHEAD; w++) {
+      const start = addDays(weekStart, w * 7);
+      await generateEventsForWeek(start);
+      await generateRidesForWeek(start);
+    }
+  }
+
   return NextResponse.json(updated);
 }
 
