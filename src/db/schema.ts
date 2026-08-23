@@ -130,6 +130,7 @@ export const eventRules = pgTable("event_rules", {
   dayOfWeek: integer("day_of_week").notNull(), // 0=Sun..6=Sat
   intervalWeeks: integer("interval_weeks").notNull().default(1),
   anchorDate: date("anchor_date").notNull(), // date of the first occurrence
+  endDate: date("end_date"), // null = repeats indefinitely; last date an occurrence may fall on
   startTime: time("start_time").notNull(),
   endTime: time("end_time"),
   location: text("location"),

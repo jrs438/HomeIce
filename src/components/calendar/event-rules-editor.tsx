@@ -73,6 +73,7 @@ export function EventRulesEditor({
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
                   {rule.startTime.slice(0, 5)}
                   {rule.endTime ? `–${rule.endTime.slice(0, 5)}` : ""} {rule.location ? `@ ${rule.location}` : ""}
+                  {rule.endDate ? ` · through ${rule.endDate}` : ""}
                 </p>
               </div>
               <div className="flex gap-1">
@@ -108,6 +109,7 @@ function EventRuleForm({
   const [dayOfWeek, setDayOfWeek] = useState(initial?.dayOfWeek ?? 4);
   const [intervalWeeks, setIntervalWeeks] = useState(initial?.intervalWeeks ?? 1);
   const [anchorDate, setAnchorDate] = useState(initial?.anchorDate ?? ymd(new Date()));
+  const [endDate, setEndDate] = useState(initial?.endDate ?? "");
   const [startTime, setStartTime] = useState(initial?.startTime?.slice(0, 5) ?? "17:00");
   const [endTime, setEndTime] = useState(initial?.endTime?.slice(0, 5) ?? "");
   const [location, setLocation] = useState(initial?.location ?? "");
@@ -169,6 +171,7 @@ function EventRuleForm({
         dayOfWeek,
         intervalWeeks,
         anchorDate,
+        endDate: endDate || null,
         startTime,
         endTime: endTime || null,
         location: location || null,
@@ -240,6 +243,18 @@ function EventRuleForm({
           />
         </label>
       )}
+      <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
+        End date (optional)
+        <input
+          type="date"
+          value={endDate}
+          onChange={(e) => setEndDate(e.target.value)}
+          min={anchorDate}
+          className="rounded-md border px-3 py-2 text-sm"
+          style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+        />
+        <span>Leave blank to repeat indefinitely. Set it (e.g. end of a season) and it stops on its own — no need to remember to turn it off.</span>
+      </label>
       <div className="flex gap-2">
         <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
           Start time

@@ -15,7 +15,10 @@ export async function generateEventsForWeek(weekStart: Date) {
     const dow = day.getDay();
     const date = ymd(day);
     const rulesForDay = activeRules.filter(
-      (r) => r.dayOfWeek === dow && isOnRecurrenceCycle(day, r.intervalWeeks, r.anchorDate)
+      (r) =>
+        r.dayOfWeek === dow &&
+        isOnRecurrenceCycle(day, r.intervalWeeks, r.anchorDate) &&
+        (!r.endDate || date <= r.endDate)
     );
 
     for (const rule of rulesForDay) {

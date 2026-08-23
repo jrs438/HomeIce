@@ -30,6 +30,7 @@ export async function POST(req: NextRequest) {
       dayOfWeek: body.dayOfWeek,
       intervalWeeks: body.intervalWeeks ?? 1,
       anchorDate: body.anchorDate,
+      endDate: body.endDate || null,
       startTime: body.startTime,
       endTime: body.endTime || null,
       location: body.location || null,

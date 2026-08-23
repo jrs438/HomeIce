@@ -1,0 +1,1 @@
+ALTER TABLE "event_rules" ADD COLUMN "end_date" date;

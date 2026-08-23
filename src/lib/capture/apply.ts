@@ -119,6 +119,7 @@ export async function applyAction(
           dayOfWeek: action.dayOfWeek,
           intervalWeeks: action.intervalWeeks ?? 1,
           anchorDate: nextOccurrence(action.dayOfWeek),
+          endDate: action.endDate || null,
           startTime: action.startTime,
           endTime: action.endTime || null,
           location: action.location || null,

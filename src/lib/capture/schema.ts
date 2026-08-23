@@ -35,6 +35,7 @@ export type CaptureAction = {
   startTime?: string;
   endTime?: string;
   intervalWeeks?: number;
+  endDate?: string;
   driverType?: "member" | "external" | "carpool" | "unassigned";
   driverName?: string;
   label?: string;
@@ -90,6 +91,11 @@ export const CAPTURE_TOOL = {
             intervalWeeks: {
               type: "integer",
               description: "For add_recurring_event: 1 for every week (default), 2 for every other week, etc. Only set >1 if the input actually says so (\"every other week\", \"biweekly\").",
+            },
+            endDate: {
+              type: "string",
+              description:
+                "ISO date for add_recurring_event: the last date an occurrence may fall on. Set only when the input actually states or implies a season/session end (a specific end date, \"through June\", \"fall season\", a printed schedule listing weeks that visibly stop on a date). Omit entirely for anything open-ended (\"every Thursday\" with no stated end) — it should repeat indefinitely, not default to some arbitrary cutoff.",
             },
             driverType: { type: "string", enum: ["member", "external", "carpool", "unassigned"] },
             driverName: { type: "string", description: "Resolved family member or external driver name" },

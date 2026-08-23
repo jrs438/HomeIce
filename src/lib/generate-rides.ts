@@ -1,11 +1,20 @@
 import { db } from "@/db";
-import { rides, rideRules, eventExceptions } from "@/db/schema";
+import { rides, rideRules, eventExceptions, eventRules } from "@/db/schema";
 import { addDays, ymd, isOnRecurrenceCycle } from "@/lib/dates";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { notifyRideDriverChange } from "@/lib/ride-notify";
 
 export async function generateRidesForWeek(weekStart: Date) {
   const activeRules = await db.query.rideRules.findMany({ where: eq(rideRules.active, true) });
+
+  // A ride rule tied to a recurring event (eventRuleId) should stop once
+  // that event's own end date passes — otherwise you'd get ride placeholders
+  // for an activity that's no longer happening.
+  const linkedEventRuleIds = Array.from(new Set(activeRules.map((r) => r.eventRuleId).filter((id): id is string => !!id)));
+  const linkedEventRules = linkedEventRuleIds.length
+    ? await db.query.eventRules.findMany({ where: inArray(eventRules.id, linkedEventRuleIds) })
+    : [];
+  const endDateByEventRuleId = new Map(linkedEventRules.map((er) => [er.id, er.endDate]));
 
   let created = 0;
   let skippedNoTime = 0;
@@ -15,9 +24,11 @@ export async function generateRidesForWeek(weekStart: Date) {
     const day = addDays(weekStart, i);
     const dow = day.getDay();
     const date = ymd(day);
-    const rulesForDay = activeRules.filter(
-      (r) => r.dayOfWeek === dow && isOnRecurrenceCycle(day, r.intervalWeeks, r.anchorDate)
-    );
+    const rulesForDay = activeRules.filter((r) => {
+      if (r.dayOfWeek !== dow || !isOnRecurrenceCycle(day, r.intervalWeeks, r.anchorDate)) return false;
+      const linkedEndDate = r.eventRuleId ? endDateByEventRuleId.get(r.eventRuleId) : null;
+      return !linkedEndDate || date <= linkedEndDate;
+    });
 
     for (const rule of rulesForDay) {
       if (!rule.time) {

@@ -37,6 +37,7 @@ export type EventRuleRecord = {
   dayOfWeek: number;
   intervalWeeks: number;
   anchorDate: string;
+  endDate: string | null;
   startTime: string;
   endTime: string | null;
   location: string | null;

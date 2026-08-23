@@ -34,6 +34,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
   if (body.dayOfWeek !== undefined) patch.dayOfWeek = body.dayOfWeek;
   if (body.intervalWeeks !== undefined) patch.intervalWeeks = body.intervalWeeks;
   if (body.anchorDate !== undefined) patch.anchorDate = body.anchorDate;
+  if (body.endDate !== undefined) patch.endDate = body.endDate || null;
   if (body.startTime !== undefined) patch.startTime = body.startTime;
   if (body.endTime !== undefined) patch.endTime = body.endTime || null;
   if (body.location !== undefined) patch.location = body.location || null;
