@@ -117,6 +117,23 @@ export function isOnRecurrenceCycle(day: Date, intervalWeeks: number, anchorDate
   return weeksSince >= 0 && weeksSince % intervalWeeks === 0;
 }
 
+/**
+ * How many weeks (from `weekStart`) need generating up front to reach a
+ * recurring rule's `endDate` — used so setting an end date immediately
+ * materializes the whole series instead of only whatever the normal
+ * few-weeks-ahead window would have covered, leaving the rest to a cron
+ * that might not even be running. No end date just returns `minWeeks`
+ * (the normal short window, topped up over time by the rolling cron
+ * instead). Capped at `maxWeeks` as a sanity ceiling against a wildly
+ * distant date.
+ */
+export function weeksToGenerate(weekStart: Date, endDate: string | null, minWeeks: number, maxWeeks = 104): number {
+  if (!endDate) return minWeeks;
+  const end = new Date(`${endDate}T00:00:00`);
+  const diffWeeks = Math.ceil((end.getTime() - weekStart.getTime()) / WEEK_MS) + 1;
+  return Math.min(Math.max(diffWeeks, minWeeks), maxWeeks);
+}
+
 export const WEEKDAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 export const MONTH_LABELS = [
   "January",

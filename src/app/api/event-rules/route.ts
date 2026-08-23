@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { eventRules, rideRules } from "@/db/schema";
-import { startOfWeek } from "@/lib/dates";
+import { startOfWeek, weeksToGenerate } from "@/lib/dates";
 import { generateEventsForWeek } from "@/lib/generate-events";
 import { generateRidesForWeek } from "@/lib/generate-rides";
 
@@ -69,8 +69,13 @@ export async function POST(req: NextRequest) {
     });
   }
 
+  // With an end date, front-load the whole series right away rather than
+  // relying on the rolling weekly cron to eventually reach it (which may
+  // not even be running) — a season with a known end shouldn't depend on
+  // that.
   const weekStart = startOfWeek(new Date());
-  for (let w = 0; w < WEEKS_AHEAD; w++) {
+  const weeks = weeksToGenerate(weekStart, created.endDate, WEEKS_AHEAD);
+  for (let w = 0; w < weeks; w++) {
     const start = new Date(weekStart);
     start.setDate(start.getDate() + w * 7);
     await generateEventsForWeek(start);

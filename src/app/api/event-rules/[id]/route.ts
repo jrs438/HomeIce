@@ -3,7 +3,7 @@ import { db } from "@/db";
 import { eventRules, events, rides, rideRules } from "@/db/schema";
 import { eq, and, gte } from "drizzle-orm";
 import { notifyRideCancelled } from "@/lib/ride-notify";
-import { startOfWeek, addDays, ymd } from "@/lib/dates";
+import { startOfWeek, addDays, ymd, weeksToGenerate } from "@/lib/dates";
 import { generateEventsForWeek } from "@/lib/generate-events";
 import { generateRidesForWeek } from "@/lib/generate-rides";
 
@@ -126,11 +126,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         await removeRideRuleAndFutureRides(existing);
       }
     }
+  }
 
-    // Backfill: a newly-added ride need should apply to weeks that were
-    // already materialized, not just occurrences generated from now on.
+  // Backfill on either kind of change: a newly-added ride need should apply
+  // to weeks already materialized, not just future ones — and setting or
+  // extending an end date should front-load the rest of the series right
+  // away rather than waiting on the rolling weekly cron to eventually get
+  // there.
+  if (body.needsDropoff !== undefined || body.needsPickup !== undefined || body.endDate !== undefined) {
     const weekStart = startOfWeek(new Date());
-    for (let w = 0; w < WEEKS_AHEAD; w++) {
+    const weeks = weeksToGenerate(weekStart, updated.endDate, WEEKS_AHEAD);
+    for (let w = 0; w < weeks; w++) {
       const start = addDays(weekStart, w * 7);
       await generateEventsForWeek(start);
       await generateRidesForWeek(start);

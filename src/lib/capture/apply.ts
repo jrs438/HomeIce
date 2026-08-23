@@ -2,7 +2,7 @@ import { db } from "@/db";
 import { events, rides, rideRules, eventRules, groceryItems, chores, dinnerRequests, dinnerMenu, undoLog } from "@/db/schema";
 import { eq, and, ilike } from "drizzle-orm";
 import { isoWeekKey } from "@/lib/week";
-import { parseWallClockOrUtc, addDays, startOfWeek, ymd, WEEKDAY_LABELS } from "@/lib/dates";
+import { parseWallClockOrUtc, addDays, startOfWeek, ymd, WEEKDAY_LABELS, weeksToGenerate } from "@/lib/dates";
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { generateEventsForWeek } from "@/lib/generate-events";
 import { generateRidesForWeek } from "@/lib/generate-rides";
@@ -131,8 +131,12 @@ export async function applyAction(
       context.lastEventRuleId = created.id;
       context.lastEventRuleDayOfWeek = created.dayOfWeek;
 
+      // With an end date (e.g. a photo of a schedule that visibly stops on a
+      // date), front-load the whole series now rather than leaving the rest
+      // to the rolling weekly cron.
       const weekStart = startOfWeek(new Date());
-      for (let w = 0; w < 4; w++) {
+      const weeksAhead = weeksToGenerate(weekStart, created.endDate, 4);
+      for (let w = 0; w < weeksAhead; w++) {
         await generateEventsForWeek(addDays(weekStart, w * 7));
       }
 
@@ -284,8 +288,15 @@ export async function applyAction(
         })
         .returning();
 
+      // If this ride is linked to a recurring event with an end date,
+      // front-load rides for the whole series now too, same reasoning as
+      // add_recurring_event above.
+      const linkedEventRule = linkToEventRule
+        ? await db.query.eventRules.findFirst({ where: eq(eventRules.id, linkToEventRule) })
+        : null;
       const weekStart = startOfWeek(new Date());
-      for (let w = 0; w < 4; w++) {
+      const weeksAhead = weeksToGenerate(weekStart, linkedEventRule?.endDate ?? null, 4);
+      for (let w = 0; w < weeksAhead; w++) {
         await generateRidesForWeek(addDays(weekStart, w * 7));
       }
 
