@@ -77,6 +77,12 @@ export function TodayClient({
     setRidesList((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
   }
 
+  async function removeRide(rideId: string) {
+    if (!confirm("Delete this ride?")) return;
+    const res = await fetch(`/api/rides/${rideId}`, { method: "DELETE" });
+    if (res.ok) setRidesList((prev) => prev.filter((r) => r.id !== rideId));
+  }
+
   async function assign(rideId: string, driverType: RideRecord["driverType"], driverId: string | null) {
     const res = await fetch(`/api/rides/${rideId}`, {
       method: "PATCH",
@@ -169,6 +175,7 @@ export function TodayClient({
               members={members}
               externalDrivers={externalDrivers}
               onAssign={() => setAssigningId(item.ride.id)}
+              onDelete={() => removeRide(item.ride.id)}
             />
           )
         )}

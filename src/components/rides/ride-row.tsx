@@ -1,3 +1,4 @@
+import { Trash2 } from "lucide-react";
 import { DriverPuck } from "@/components/puck";
 import type { MemberLite } from "@/components/events/types";
 import { RIDE_KIND_LABELS, type ExternalDriverRecord, type RideRecord } from "./types";
@@ -14,11 +15,13 @@ export function RideRow({
   members,
   externalDrivers,
   onAssign,
+  onDelete,
 }: {
   ride: RideRecord;
   members: MemberLite[];
   externalDrivers: ExternalDriverRecord[];
   onAssign: () => void;
+  onDelete: () => void;
 }) {
   const kids = members.filter((m) => ride.kidIds.includes(m.id));
   const driverMember = ride.driverType === "member" ? members.find((m) => m.id === ride.driverId) : null;
@@ -65,6 +68,14 @@ export function RideRow({
             Unassigned
           </span>
         )}
+      </button>
+      <button
+        onClick={onDelete}
+        aria-label="Delete ride"
+        className="shrink-0 rounded p-1"
+        style={{ color: "var(--text-muted)" }}
+      >
+        <Trash2 size={16} />
       </button>
     </div>
   );
