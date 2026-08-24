@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { eventRules, events, rides, rideRules } from "@/db/schema";
 import { eq, and, gte } from "drizzle-orm";
-import { notifyRideCancelled } from "@/lib/ride-notify";
+import { notifyRideCancelled, notifyRideDetailsChanged } from "@/lib/ride-notify";
 import { startOfWeek, addDays, ymd, weeksToGenerate } from "@/lib/dates";
 import { generateEventsForWeek } from "@/lib/generate-events";
 import { generateRidesForWeek } from "@/lib/generate-rides";
@@ -23,6 +23,28 @@ async function removeRideRuleAndFutureRides(rule: typeof rideRules.$inferSelect)
     await db.delete(rides).where(and(eq(rides.kind, rule.kind), eq(rides.from, rule.from), eq(rides.to, rule.to), gte(rides.date, today)));
   }
   await db.delete(rideRules).where(eq(rideRules.id, rule.id));
+}
+
+// Updates already-materialized, not-yet-happened rides that came from a
+// linked ride_rule so an edit (from/to/time) takes effect on this week's
+// rides too, not just ones generated from here on — mirroring what
+// removeRideRuleAndFutureRides does for a leg turned off entirely.
+async function syncFutureRideLegTimes(
+  oldRule: typeof rideRules.$inferSelect,
+  next: { from: string; to: string; time: string; kidIds: string[] }
+) {
+  const today = ymd(new Date());
+  const matchingRides = await db.query.rides.findMany({
+    where: and(eq(rides.kind, oldRule.kind), eq(rides.from, oldRule.from), eq(rides.to, oldRule.to), gte(rides.date, today)),
+  });
+  for (const r of matchingRides) {
+    const [updated] = await db
+      .update(rides)
+      .set({ from: next.from, to: next.to, time: next.time, kidIds: next.kidIds, updatedAt: new Date() })
+      .where(eq(rides.id, r.id))
+      .returning();
+    if (updated.driverType !== "unassigned") await notifyRideDetailsChanged(updated);
+  }
 }
 
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -61,18 +83,17 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
       const existing = linked.find((r) => r.kind === "activity_dropoff");
       if (body.needsDropoff && body.dropoffFrom && body.dropoffTo) {
         if (existing) {
+          const next = { from: body.dropoffFrom, to: body.dropoffTo, time: updated.startTime, kidIds: updated.kidIds };
           await db
             .update(rideRules)
             .set({
               dayOfWeek: updated.dayOfWeek,
               intervalWeeks: updated.intervalWeeks,
               anchorDate: updated.anchorDate,
-              kidIds: updated.kidIds,
-              from: body.dropoffFrom,
-              to: body.dropoffTo,
-              time: updated.startTime,
+              ...next,
             })
             .where(eq(rideRules.id, existing.id));
+          await syncFutureRideLegTimes(existing, next);
         } else {
           await db.insert(rideRules).values({
             label: `${updated.title} drop-off`,
@@ -95,19 +116,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     if (body.needsPickup !== undefined) {
       const existing = linked.find((r) => r.kind === "activity_pickup");
       if (body.needsPickup && body.pickupFrom && body.pickupTo) {
+        // A pick-up leg should track when the class actually ENDS. An
+        // explicit pickupTime from the form wins; otherwise fall back to
+        // the event's own end time, and only as a last resort to its start
+        // time — which is only correct by coincidence and was the source
+        // of pick-ups silently getting scheduled for the start of class
+        // when no end time had been set.
+        const time = body.pickupTime || updated.endTime || updated.startTime;
         if (existing) {
+          const next = { from: body.pickupFrom, to: body.pickupTo, time, kidIds: updated.kidIds };
           await db
             .update(rideRules)
             .set({
               dayOfWeek: updated.dayOfWeek,
               intervalWeeks: updated.intervalWeeks,
               anchorDate: updated.anchorDate,
-              kidIds: updated.kidIds,
-              from: body.pickupFrom,
-              to: body.pickupTo,
-              time: updated.endTime || updated.startTime,
+              ...next,
             })
             .where(eq(rideRules.id, existing.id));
+          await syncFutureRideLegTimes(existing, next);
         } else {
           await db.insert(rideRules).values({
             label: `${updated.title} pick-up`,
@@ -118,7 +145,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
             kidIds: updated.kidIds,
             from: body.pickupFrom,
             to: body.pickupTo,
-            time: updated.endTime || updated.startTime,
+            time,
             eventRuleId: id,
           });
         }

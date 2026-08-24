@@ -123,6 +123,7 @@ function EventRuleForm({
   const [needsPickup, setNeedsPickup] = useState(false);
   const [pickupFrom, setPickupFrom] = useState(initial?.location ?? "");
   const [pickupTo, setPickupTo] = useState("Home");
+  const [pickupTime, setPickupTime] = useState("");
   const [loadingRideRules, setLoadingRideRules] = useState(!!initial);
 
   const [saving, setSaving] = useState(false);
@@ -149,6 +150,7 @@ function EventRuleForm({
           setNeedsPickup(true);
           setPickupFrom(pickup.from);
           setPickupTo(pickup.to);
+          setPickupTime(pickup.time?.slice(0, 5) ?? "");
         }
       })
       .finally(() => {
@@ -183,7 +185,11 @@ function EventRuleForm({
         // when a box gets unchecked — creating has nothing to remove yet,
         // so it only sends the key when actually turning one on.
         ...(needsDropoff ? { needsDropoff, dropoffFrom, dropoffTo } : initial ? { needsDropoff: false } : {}),
-        ...(needsPickup ? { needsPickup, pickupFrom, pickupTo } : initial ? { needsPickup: false } : {}),
+        ...(needsPickup
+          ? { needsPickup, pickupFrom, pickupTo, pickupTime: pickupTime || endTime || startTime }
+          : initial
+            ? { needsPickup: false }
+            : {}),
       };
       const res = await fetch(initial ? `/api/event-rules/${initial.id}` : "/api/event-rules", {
         method: initial ? "PATCH" : "POST",
@@ -351,21 +357,38 @@ function EventRuleForm({
             Needs a pick-up ride
           </label>
           {needsPickup && (
-            <div className="mt-1.5 flex gap-1.5 pl-6">
-              <input
-                value={pickupFrom}
-                onChange={(e) => setPickupFrom(e.target.value)}
-                placeholder="From"
-                className="w-0 flex-1 rounded-md border px-2 py-1.5 text-xs"
-                style={{ borderColor: "var(--border)", background: "var(--bg)" }}
-              />
-              <input
-                value={pickupTo}
-                onChange={(e) => setPickupTo(e.target.value)}
-                placeholder="To"
-                className="w-0 flex-1 rounded-md border px-2 py-1.5 text-xs"
-                style={{ borderColor: "var(--border)", background: "var(--bg)" }}
-              />
+            <div className="mt-1.5 flex flex-col gap-1.5 pl-6">
+              <div className="flex gap-1.5">
+                <input
+                  value={pickupFrom}
+                  onChange={(e) => setPickupFrom(e.target.value)}
+                  placeholder="From"
+                  className="w-0 flex-1 rounded-md border px-2 py-1.5 text-xs"
+                  style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+                />
+                <input
+                  value={pickupTo}
+                  onChange={(e) => setPickupTo(e.target.value)}
+                  placeholder="To"
+                  className="w-0 flex-1 rounded-md border px-2 py-1.5 text-xs"
+                  style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+                />
+              </div>
+              <label className="flex items-center gap-1.5 text-xs" style={{ color: "var(--text-muted)" }}>
+                Pick-up time
+                <input
+                  type="time"
+                  value={pickupTime || endTime || startTime}
+                  onChange={(e) => setPickupTime(e.target.value)}
+                  className="w-28 rounded-md border px-2 py-1.5 text-xs"
+                  style={{ borderColor: "var(--border)", background: "var(--bg)" }}
+                />
+              </label>
+              {!pickupTime && !endTime && (
+                <span className="text-[11px]" style={{ color: "var(--danger)" }}>
+                  No end time set — defaulting to the start time above. Set an end time or a pick-up time so this isn&apos;t scheduled for when class starts.
+                </span>
+              )}
             </div>
           )}
         </div>

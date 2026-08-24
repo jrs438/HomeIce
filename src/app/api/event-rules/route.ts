@@ -64,7 +64,9 @@ export async function POST(req: NextRequest) {
       kidIds: created.kidIds,
       from: body.pickupFrom,
       to: body.pickupTo,
-      time: body.endTime || body.startTime,
+      // See event-rules/[id]/route.ts for why an explicit pickupTime is
+      // preferred over silently falling back to the event's start time.
+      time: body.pickupTime || body.endTime || body.startTime,
       eventRuleId: created.id,
     });
   }
