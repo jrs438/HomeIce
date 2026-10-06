@@ -1,6 +1,6 @@
 import { db } from "@/db";
 import { events, icsFeeds, rides } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { parseIcs, type ParsedIcsEvent } from "@/lib/ics";
 import { sendPushToMember } from "@/lib/push";
 import { notifyRideCancelled } from "@/lib/ride-notify";
@@ -148,6 +148,34 @@ export async function pollIcsFeeds(): Promise<IcsPollResult> {
             if (!passesFilter) skipped++;
             continue;
           }
+
+          // Some upstream feeds reissue a new UID for the same game once
+          // details are finalized (e.g. a placeholder "Game #2" gets
+          // replaced by the real matchup title) — without this, that looks
+          // like a brand-new event and leaves the old one stranded as a
+          // duplicate instead of just updating in place. Only treat it as
+          // the same event when exactly one same-feed, same-start,
+          // compatible-location candidate is still on the calendar, so two
+          // genuinely different games at the same time don't get merged.
+          const candidates = await db.query.events.findMany({
+            where: and(eq(events.sourceRef, feed.id), eq(events.source, "ics"), eq(events.start, item.start)),
+          });
+          const rotated =
+            candidates.length === 1 &&
+            candidates[0].status !== "cancelled" &&
+            (!item.location || !candidates[0].location || candidates[0].location === item.location)
+              ? candidates[0]
+              : null;
+
+          if (rotated) {
+            await db
+              .update(events)
+              .set({ title, end: item.end, location: item.location, icsUid: item.uid, updatedAt: new Date() })
+              .where(eq(events.id, rotated.id));
+            updated++;
+            continue;
+          }
+
           const [createdEvent] = await db
             .insert(events)
             .values({
