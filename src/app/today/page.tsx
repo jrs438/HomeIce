@@ -1,16 +1,23 @@
 import { db } from "@/db";
 import { events, dinnerMenu, rides } from "@/db/schema";
 import { and, ne, or, isNull, gte, lte, eq } from "drizzle-orm";
-import { startOfDay, endOfDay, ymd, WEEKDAY_LABELS, MONTH_LABELS } from "@/lib/dates";
+import { parseWallClockOrUtc, utcToZonedParts, WEEKDAY_LABELS, MONTH_LABELS } from "@/lib/dates";
+import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { getHebcalInfo } from "@/lib/hebcal";
 import { getSetting } from "@/lib/settings";
 import { TodayClient } from "@/components/today/today-client";
 
 export default async function TodayPage() {
+  // The server's own local timezone is UTC (Vercel), not the family's — so
+  // "today" has to be computed as the family's calendar date, not the
+  // server's. Using the server's day directly would shift the whole
+  // start/end window by UTC's offset from FAMILY_TIMEZONE, bleeding the
+  // tail end of yesterday evening into "today" while cutting off today's
+  // own late evening.
   const now = new Date();
-  const dayStart = startOfDay(now);
-  const dayEnd = endOfDay(now);
-  const today = ymd(now);
+  const today = utcToZonedParts(now, FAMILY_TIMEZONE).date;
+  const dayStart = parseWallClockOrUtc(`${today}T00:00:00`, FAMILY_TIMEZONE);
+  const dayEnd = parseWallClockOrUtc(`${today}T23:59:59.999`, FAMILY_TIMEZONE);
 
   const [todaysEvents, todaysRides, members, externalDrivers, dinner, zip] = await Promise.all([
     db.query.events.findMany({
@@ -33,7 +40,8 @@ export default async function TodayPage() {
 
   const hebcal = await getHebcalInfo(zip);
 
-  const heading = `${WEEKDAY_LABELS[now.getDay()]}, ${MONTH_LABELS[now.getMonth()]} ${now.getDate()}`;
+  const todayDateOnly = new Date(`${today}T00:00:00`);
+  const heading = `${WEEKDAY_LABELS[todayDateOnly.getDay()]}, ${MONTH_LABELS[todayDateOnly.getMonth()]} ${todayDateOnly.getDate()}`;
 
   return (
     <TodayClient

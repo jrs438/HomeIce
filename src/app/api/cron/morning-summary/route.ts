@@ -4,7 +4,8 @@ import { requireCronSecret } from "@/lib/require-cron";
 import { sendPushToRoles, pushConfigured } from "@/lib/push";
 import { events, rides } from "@/db/schema";
 import { and, ne, or, isNull, gte, lte, eq } from "drizzle-orm";
-import { startOfDay, endOfDay, ymd } from "@/lib/dates";
+import { parseWallClockOrUtc, utcToZonedParts } from "@/lib/dates";
+import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 
 export async function POST(req: NextRequest) {
   const unauthorized = requireCronSecret(req);
@@ -14,10 +15,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ ok: true, sent: false, note: "Push not configured (VAPID keys missing)" });
   }
 
-  const now = new Date();
-  const dayStart = startOfDay(now);
-  const dayEnd = endOfDay(now);
-  const today = ymd(now);
+  // Same family-timezone-vs-server-UTC distinction as the Today page: "today"
+  // has to be the family's calendar date, not the server's.
+  const today = utcToZonedParts(new Date(), FAMILY_TIMEZONE).date;
+  const dayStart = parseWallClockOrUtc(`${today}T00:00:00`, FAMILY_TIMEZONE);
+  const dayEnd = parseWallClockOrUtc(`${today}T23:59:59.999`, FAMILY_TIMEZONE);
 
   const [todaysEvents, todaysRides] = await Promise.all([
     db.query.events.findMany({

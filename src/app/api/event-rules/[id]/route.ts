@@ -3,7 +3,8 @@ import { db } from "@/db";
 import { eventRules, events, rides, rideRules } from "@/db/schema";
 import { eq, and, gte } from "drizzle-orm";
 import { notifyRideCancelled, notifyRideDetailsChanged } from "@/lib/ride-notify";
-import { startOfWeek, addDays, ymd, weeksToGenerate } from "@/lib/dates";
+import { startOfWeek, addDays, utcToZonedParts, weeksToGenerate } from "@/lib/dates";
+import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { generateEventsForWeek } from "@/lib/generate-events";
 import { generateRidesForWeek } from "@/lib/generate-rides";
 
@@ -14,7 +15,7 @@ const WEEKS_AHEAD = 4;
 // an existing recurring event, mirroring the cleanup DELETE below does for
 // the whole series.
 async function removeRideRuleAndFutureRides(rule: typeof rideRules.$inferSelect) {
-  const today = ymd(new Date());
+  const today = utcToZonedParts(new Date(), FAMILY_TIMEZONE).date;
   const matchingRides = await db.query.rides.findMany({
     where: and(eq(rides.kind, rule.kind), eq(rides.from, rule.from), eq(rides.to, rule.to), gte(rides.date, today)),
   });
@@ -33,7 +34,7 @@ async function syncFutureRideLegTimes(
   oldRule: typeof rideRules.$inferSelect,
   next: { from: string; to: string; time: string; kidIds: string[] }
 ) {
-  const today = ymd(new Date());
+  const today = utcToZonedParts(new Date(), FAMILY_TIMEZONE).date;
   const matchingRides = await db.query.rides.findMany({
     where: and(eq(rides.kind, oldRule.kind), eq(rides.from, oldRule.from), eq(rides.to, oldRule.to), gte(rides.date, today)),
   });
@@ -194,13 +195,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
     );
   }
 
+  const today = utcToZonedParts(now, FAMILY_TIMEZONE).date;
   const linkedRideRules = await db.query.rideRules.findMany({ where: eq(rideRules.eventRuleId, id) });
   for (const rr of linkedRideRules) {
     const matchingRides = await db.query.rides.findMany({
-      where: and(eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to), gte(rides.date, now.toISOString().slice(0, 10))),
+      where: and(eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to), gte(rides.date, today)),
     });
     for (const r of matchingRides) await notifyRideCancelled(r);
-    await db.delete(rides).where(and(eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to), gte(rides.date, now.toISOString().slice(0, 10))));
+    await db.delete(rides).where(and(eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to), gte(rides.date, today)));
   }
 
   await db.delete(eventRules).where(eq(eventRules.id, id));
