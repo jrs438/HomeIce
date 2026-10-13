@@ -46,8 +46,21 @@ export async function generateRidesForWeek(weekStart: Date) {
         }
       }
 
+      // Matching on date/kind/from/to alone treats any two rules for the
+      // same route as "the same ride" — so when a broader rule (e.g. a
+      // whole-evening drop-off/pick-up bundle) and a specific class's own
+      // linked ride rule share a route but have different times, whichever
+      // rule's loop iteration ran first silently wins the date and the
+      // other's ride never gets created. Time has to be part of the match
+      // so two genuinely different legs on the same route don't collide.
       const existing = await db.query.rides.findFirst({
-        where: and(eq(rides.date, date), eq(rides.kind, rule.kind), eq(rides.from, rule.from), eq(rides.to, rule.to)),
+        where: and(
+          eq(rides.date, date),
+          eq(rides.kind, rule.kind),
+          eq(rides.from, rule.from),
+          eq(rides.to, rule.to),
+          eq(rides.time, rule.time)
+        ),
       });
       if (existing) continue;
 
