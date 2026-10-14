@@ -32,7 +32,11 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const label: string | undefined = body.label;
-  const dryRun = body.dryRun !== false;
+  // Accept either casing -- a human typing this into a phone keyboard is
+  // more likely to get the capitalization wrong than to mean "run it for
+  // real" when they wrote dryRun/dryrun/DryRun with any value but false.
+  const dryRunValue = body.dryRun ?? body.dryrun ?? body.DryRun;
+  const dryRun = dryRunValue !== false && dryRunValue !== "false";
   if (!label) return NextResponse.json({ error: "label is required" }, { status: 400 });
 
   const feed = await db.query.icsFeeds.findFirst({ where: ilike(icsFeeds.label, `%${label}%`) });
