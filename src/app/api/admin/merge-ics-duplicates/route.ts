@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { icsFeeds, events, rides } from "@/db/schema";
 import { eq, and, ne, ilike, inArray } from "drizzle-orm";
+import { notifyRideCancelled } from "@/lib/ride-notify";
 
 const GAME_PLACEHOLDER = /-\s*Game\s*#\d+$/i;
 
@@ -89,6 +90,28 @@ export async function POST(req: NextRequest) {
       for (const loser of toRemove) {
         await db.update(rides).set({ eventId: keeper.id }).where(eq(rides.eventId, loser.id));
         await db.delete(events).where(eq(events.id, loser.id));
+      }
+
+      // Reassigning both sides' rides onto one event is correct when each
+      // side had at most one leg of a kind — but if BOTH already had their
+      // own drop-off/pick-up (the usual case here), the keeper now has two
+      // of each. Collapse back down to one per kind, preferring whichever
+      // has a real driver assigned so an existing assignment isn't lost.
+      const mergedRides = await db.query.rides.findMany({ where: eq(rides.eventId, keeper.id) });
+      const byKind = new Map<string, typeof mergedRides>();
+      for (const r of mergedRides) {
+        const list = byKind.get(r.kind) ?? [];
+        list.push(r);
+        byKind.set(r.kind, list);
+      }
+      for (const group of byKind.values()) {
+        if (group.length <= 1) continue;
+        const rideKeeper = group.find((r) => r.driverType !== "unassigned") ?? group[0];
+        for (const extra of group) {
+          if (extra.id === rideKeeper.id) continue;
+          await notifyRideCancelled(extra);
+          await db.delete(rides).where(eq(rides.id, extra.id));
+        }
       }
     }
   }
