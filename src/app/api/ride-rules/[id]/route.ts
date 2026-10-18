@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { rideRules, rides } from "@/db/schema";
-import { and, eq, gte } from "drizzle-orm";
-import { utcToZonedParts } from "@/lib/dates";
+import { and, eq, gte, inArray } from "drizzle-orm";
+import { utcToZonedParts, dayOfWeekOfDateString } from "@/lib/dates";
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { notifyRideCancelled, notifyRideDetailsChanged } from "@/lib/ride-notify";
 
@@ -36,7 +36,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     existing.kind !== updated.kind || existing.from !== updated.from || existing.to !== updated.to || existing.time !== updated.time;
   if (routeChanged && existing.time && updated.time) {
     const today = utcToZonedParts(new Date(), FAMILY_TIMEZONE).date;
-    const matchingRides = await db.query.rides.findMany({
+    const candidates = await db.query.rides.findMany({
       where: and(
         eq(rides.kind, existing.kind),
         eq(rides.from, existing.from),
@@ -45,6 +45,7 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
         gte(rides.date, today)
       ),
     });
+    const matchingRides = candidates.filter((r) => dayOfWeekOfDateString(r.date) === existing.dayOfWeek);
     for (const r of matchingRides) {
       const [saved] = await db
         .update(rides)
@@ -64,7 +65,7 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const rule = await db.query.rideRules.findFirst({ where: eq(rideRules.id, id) });
   if (rule && rule.time) {
     const today = utcToZonedParts(new Date(), FAMILY_TIMEZONE).date;
-    const matchingRides = await db.query.rides.findMany({
+    const candidates = await db.query.rides.findMany({
       where: and(
         eq(rides.kind, rule.kind),
         eq(rides.from, rule.from),
@@ -73,17 +74,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
         gte(rides.date, today)
       ),
     });
+    const matchingRides = candidates.filter((r) => dayOfWeekOfDateString(r.date) === rule.dayOfWeek);
     for (const r of matchingRides) await notifyRideCancelled(r);
     if (matchingRides.length) {
-      await db.delete(rides).where(
-        and(
-          eq(rides.kind, rule.kind),
-          eq(rides.from, rule.from),
-          eq(rides.to, rule.to),
-          eq(rides.time, rule.time),
-          gte(rides.date, today)
-        )
-      );
+      await db.delete(rides).where(inArray(rides.id, matchingRides.map((r) => r.id)));
     }
   }
 

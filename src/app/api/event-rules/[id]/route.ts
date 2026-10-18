@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { eventRules, events, rides, rideRules } from "@/db/schema";
-import { eq, and, gte } from "drizzle-orm";
+import { eq, and, gte, inArray } from "drizzle-orm";
 import { notifyRideCancelled, notifyRideDetailsChanged } from "@/lib/ride-notify";
-import { startOfWeek, addDays, utcToZonedParts, weeksToGenerate } from "@/lib/dates";
+import { startOfWeek, addDays, utcToZonedParts, weeksToGenerate, dayOfWeekOfDateString } from "@/lib/dates";
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { generateEventsForWeek } from "@/lib/generate-events";
 import { generateRidesForWeek } from "@/lib/generate-rides";
@@ -16,12 +16,16 @@ const WEEKS_AHEAD = 4;
 // the whole series.
 async function removeRideRuleAndFutureRides(rule: typeof rideRules.$inferSelect) {
   const today = utcToZonedParts(new Date(), FAMILY_TIMEZONE).date;
-  const matchingRides = await db.query.rides.findMany({
+  const candidates = await db.query.rides.findMany({
     where: and(eq(rides.kind, rule.kind), eq(rides.from, rule.from), eq(rides.to, rule.to), gte(rides.date, today)),
   });
+  // Matching on route alone would also catch a DIFFERENT day's rides that
+  // happen to share the same kind/from/to (e.g. the same gym on both Monday
+  // and Thursday) and wrongly touch rides this rule never generated.
+  const matchingRides = candidates.filter((r) => dayOfWeekOfDateString(r.date) === rule.dayOfWeek);
   for (const r of matchingRides) await notifyRideCancelled(r);
   if (matchingRides.length) {
-    await db.delete(rides).where(and(eq(rides.kind, rule.kind), eq(rides.from, rule.from), eq(rides.to, rule.to), gte(rides.date, today)));
+    await db.delete(rides).where(inArray(rides.id, matchingRides.map((r) => r.id)));
   }
   await db.delete(rideRules).where(eq(rideRules.id, rule.id));
 }
@@ -35,9 +39,10 @@ async function syncFutureRideLegTimes(
   next: { from: string; to: string; time: string; kidIds: string[] }
 ) {
   const today = utcToZonedParts(new Date(), FAMILY_TIMEZONE).date;
-  const matchingRides = await db.query.rides.findMany({
+  const candidates = await db.query.rides.findMany({
     where: and(eq(rides.kind, oldRule.kind), eq(rides.from, oldRule.from), eq(rides.to, oldRule.to), gte(rides.date, today)),
   });
+  const matchingRides = candidates.filter((r) => dayOfWeekOfDateString(r.date) === oldRule.dayOfWeek);
   for (const r of matchingRides) {
     const [updated] = await db
       .update(rides)
@@ -198,11 +203,14 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const today = utcToZonedParts(now, FAMILY_TIMEZONE).date;
   const linkedRideRules = await db.query.rideRules.findMany({ where: eq(rideRules.eventRuleId, id) });
   for (const rr of linkedRideRules) {
-    const matchingRides = await db.query.rides.findMany({
+    const candidates = await db.query.rides.findMany({
       where: and(eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to), gte(rides.date, today)),
     });
+    const matchingRides = candidates.filter((r) => dayOfWeekOfDateString(r.date) === rr.dayOfWeek);
     for (const r of matchingRides) await notifyRideCancelled(r);
-    await db.delete(rides).where(and(eq(rides.kind, rr.kind), eq(rides.from, rr.from), eq(rides.to, rr.to), gte(rides.date, today)));
+    if (matchingRides.length) {
+      await db.delete(rides).where(inArray(rides.id, matchingRides.map((r) => r.id)));
+    }
   }
 
   await db.delete(eventRules).where(eq(eventRules.id, id));

@@ -37,6 +37,11 @@ export function ymd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
+/** Day of week (0=Sun..6=Sat) for a "YYYY-MM-DD" date string, independent of any timezone. */
+export function dayOfWeekOfDateString(dateStr: string): number {
+  return new Date(`${dateStr}T00:00:00Z`).getUTCDay();
+}
+
 /**
  * Interprets "YYYY-MM-DDTHH:mm[:ss]" as wall-clock time in `timeZone` (DST-aware)
  * and returns the corresponding instant. Needed because the server runtime's own
