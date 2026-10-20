@@ -1,7 +1,8 @@
 import { Trash2 } from "lucide-react";
 import { DriverPuck } from "@/components/puck";
 import type { MemberLite } from "@/components/events/types";
-import { RIDE_KIND_LABELS, type ExternalDriverRecord, type RideRecord } from "./types";
+import { useLocale, type TranslationKey } from "@/lib/i18n";
+import type { ExternalDriverRecord, RideRecord } from "./types";
 
 function formatTime(t: string): string {
   const [h, m] = t.split(":").map(Number);
@@ -9,6 +10,12 @@ function formatTime(t: string): string {
   d.setHours(h, m, 0, 0);
   return d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
+
+const RIDE_KIND_KEYS: Record<RideRecord["kind"], TranslationKey> = {
+  activity_dropoff: "dropOff",
+  activity_pickup: "pickup",
+  school_pickup: "schoolPickup",
+};
 
 export function RideRow({
   ride,
@@ -23,6 +30,7 @@ export function RideRow({
   onAssign: () => void;
   onDelete: () => void;
 }) {
+  const { t } = useLocale();
   const kids = members.filter((m) => ride.kidIds.includes(m.id));
   const driverMember = ride.driverType === "member" ? members.find((m) => m.id === ride.driverId) : null;
   const driverExternal = ride.driverType === "external" ? externalDrivers.find((d) => d.id === ride.driverId) : null;
@@ -40,7 +48,7 @@ export function RideRow({
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold">
-          {RIDE_KIND_LABELS[ride.kind]} · {ride.from} → {ride.to}
+          {t(RIDE_KIND_KEYS[ride.kind])} · {ride.from} → {ride.to}
         </p>
         <div className="mt-0.5 flex flex-wrap gap-1">
           {kids.map((k) => (
@@ -59,13 +67,13 @@ export function RideRow({
           <DriverPuck name={driverMember.name} color={driverMember.color} />
         )}
         {ride.driverType === "external" && driverExternal && <DriverPuck name={driverExternal.label} external />}
-        {ride.driverType === "carpool" && <DriverPuck name="Carpool" external />}
+        {ride.driverType === "carpool" && <DriverPuck name={t("carpool")} external />}
         {ride.driverType === "unassigned" && (
           <span
             className="rounded-full px-2.5 py-1 text-xs font-bold text-white"
             style={{ background: "var(--danger)" }}
           >
-            Unassigned
+            {t("unassigned")}
           </span>
         )}
       </button>

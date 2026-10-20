@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { Settings } from "lucide-react";
+import { Settings, Printer } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle";
+import { LanguageToggle } from "./language-toggle";
 import { InboxBadge } from "./inbox-badge";
 import type { CurrentMember } from "./app-shell";
 
@@ -15,7 +16,11 @@ export function Header({ member }: { member: CurrentMember }) {
       </Link>
       <div className="flex items-center gap-1">
         <InboxBadge />
+        <LanguageToggle />
         <ThemeToggle />
+        <Link href="/print" className="rounded-full p-2" style={{ color: "var(--text-muted)" }}>
+          <Printer size={18} />
+        </Link>
         <Link href="/settings" className="rounded-full p-2" style={{ color: "var(--text-muted)" }}>
           <Settings size={18} />
         </Link>

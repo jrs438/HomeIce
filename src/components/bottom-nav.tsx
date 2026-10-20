@@ -3,18 +3,20 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Newspaper, Car, CalendarDays, ShoppingCart, ListChecks, Utensils } from "lucide-react";
+import { useLocale, type TranslationKey } from "@/lib/i18n";
 
-const NAV_ITEMS = [
-  { href: "/today", label: "Today", icon: Newspaper },
-  { href: "/rides", label: "Rides", icon: Car },
-  { href: "/calendar", label: "Calendar", icon: CalendarDays },
-  { href: "/shop", label: "Shop", icon: ShoppingCart },
-  { href: "/jobs", label: "Jobs", icon: ListChecks },
-  { href: "/eat", label: "Eat", icon: Utensils },
+const NAV_ITEMS: { href: string; labelKey: TranslationKey; icon: typeof Newspaper }[] = [
+  { href: "/today", labelKey: "navToday", icon: Newspaper },
+  { href: "/rides", labelKey: "navRides", icon: Car },
+  { href: "/calendar", labelKey: "navCalendar", icon: CalendarDays },
+  { href: "/shop", labelKey: "navShop", icon: ShoppingCart },
+  { href: "/jobs", labelKey: "navJobs", icon: ListChecks },
+  { href: "/eat", labelKey: "navEat", icon: Utensils },
 ];
 
 export function BottomNav() {
   const pathname = usePathname();
+  const { t } = useLocale();
 
   return (
     <nav
@@ -22,7 +24,7 @@ export function BottomNav() {
       style={{ borderColor: "var(--border)" }}
     >
       <ul className="flex justify-between px-1">
-        {NAV_ITEMS.map(({ href, label, icon: Icon }) => {
+        {NAV_ITEMS.map(({ href, labelKey, icon: Icon }) => {
           const active = pathname?.startsWith(href);
           return (
             <li key={href} className="flex-1">
@@ -32,7 +34,7 @@ export function BottomNav() {
                 style={{ color: active ? "var(--accent)" : "var(--text-muted)" }}
               >
                 <Icon size={20} strokeWidth={active ? 2.5 : 2} />
-                <span className="rink-label">{label}</span>
+                <span className="rink-label">{t(labelKey)}</span>
               </Link>
             </li>
           );

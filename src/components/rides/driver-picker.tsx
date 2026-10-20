@@ -3,6 +3,7 @@
 import { Modal } from "@/components/modal";
 import { Car, Users, Ban } from "lucide-react";
 import type { MemberLite } from "@/components/events/types";
+import { useLocale } from "@/lib/i18n";
 import type { ExternalDriverRecord, RideRecord } from "./types";
 
 export function DriverPicker({
@@ -16,12 +17,13 @@ export function DriverPicker({
   onSelect: (driverType: RideRecord["driverType"], driverId: string | null) => void;
   onClose: () => void;
 }) {
+  const { t } = useLocale();
   return (
-    <Modal title="Assign driver" onClose={onClose}>
+    <Modal title={t("assignDriver")} onClose={onClose}>
       <div className="flex flex-col gap-4">
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-            Family
+            {t("family")}
           </p>
           <div className="flex flex-col gap-1.5">
             {members.map((m) => (
@@ -45,7 +47,7 @@ export function DriverPicker({
 
         <div>
           <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-            External
+            {t("external")}
           </p>
           <div className="flex flex-col gap-1.5">
             {externalDrivers.map((d) => (
@@ -69,7 +71,7 @@ export function DriverPicker({
             style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
           >
             <Users size={16} style={{ color: "var(--text-muted)" }} />
-            Carpool
+            {t("carpool")}
           </button>
           <button
             onClick={() => onSelect("unassigned", null)}
@@ -77,7 +79,7 @@ export function DriverPicker({
             style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
           >
             <Ban size={16} />
-            Unassigned
+            {t("unassigned")}
           </button>
         </div>
       </div>

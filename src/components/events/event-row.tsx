@@ -1,6 +1,7 @@
 import { createElement } from "react";
 import { MapPin } from "lucide-react";
 import { iconForEvent } from "@/lib/event-icon";
+import { useLocale } from "@/lib/i18n";
 import type { EventRecord, MemberLite } from "./types";
 
 export function EventRow({
@@ -14,10 +15,11 @@ export function EventRow({
   next?: boolean;
   onClick?: () => void;
 }) {
+  const { t } = useLocale();
   const eventIcon = createElement(iconForEvent(event.title), { size: 18 });
   const kids = members.filter((m) => event.kidIds.includes(m.id));
   const time = event.allDay
-    ? "All day"
+    ? t("allDay")
     : new Date(event.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 
   return (
@@ -43,7 +45,7 @@ export function EventRow({
               className="rink-label rounded px-1.5 py-0.5 text-[10px] font-bold"
               style={{ background: "var(--accent)", color: "var(--accent-text)" }}
             >
-              Next
+              {t("next")}
             </span>
           )}
           <p

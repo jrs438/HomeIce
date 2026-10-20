@@ -8,7 +8,8 @@ import { DriverPicker } from "./driver-picker";
 import { RideModal } from "./ride-modal";
 import { RulesEditor } from "./rules-editor";
 import type { ExternalDriverRecord, RideRecord, RideRuleRecord } from "./types";
-import { addDays, startOfDay, startOfWeek, ymd, WEEKDAY_LABELS, MONTH_LABELS } from "@/lib/dates";
+import { addDays, startOfDay, startOfWeek, ymd } from "@/lib/dates";
+import { useLocale } from "@/lib/i18n";
 
 export function RidesClient({
   members,
@@ -19,6 +20,7 @@ export function RidesClient({
   externalDrivers: ExternalDriverRecord[];
   initialRules: RideRuleRecord[];
 }) {
+  const { t, weekdayLabels, monthLabels } = useLocale();
   const [anchor, setAnchor] = useState(() => startOfWeek(startOfDay(new Date())));
   const [ridesList, setRidesList] = useState<RideRecord[]>([]);
   const [rules, setRules] = useState(initialRules);
@@ -53,7 +55,7 @@ export function RidesClient({
   }
 
   async function removeRide(rideId: string) {
-    if (!confirm("Delete this ride?")) return;
+    if (!confirm(t("deleteRideConfirm"))) return;
     const res = await fetch(`/api/rides/${rideId}`, { method: "DELETE" });
     if (res.ok) {
       setRidesList((prev) => prev.filter((r) => r.id !== rideId));
@@ -84,7 +86,8 @@ export function RidesClient({
         body: JSON.stringify({ weekStart: anchor.toISOString() }),
       });
       const data = await res.json();
-      setGenerateMsg(`Created ${data.created} ride${data.created === 1 ? "" : "s"} from defaults.`);
+      const msgTemplate = t(data.created === 1 ? "createdRidesSingular" : "createdRidesPlural");
+      setGenerateMsg(msgTemplate.replace("{n}", String(data.created)));
       const refreshed = await fetch(`/api/rides?start=${ymd(anchor)}&end=${ymd(addDays(anchor, 6))}`).then((r) => r.json());
       setRidesList(refreshed);
     } finally {
@@ -98,14 +101,14 @@ export function RidesClient({
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-5">
       <div className="flex items-center justify-between">
-        <h1 className="masthead text-xl">RIDES</h1>
+        <h1 className="masthead text-xl">{t("ridesHeading")}</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setShowRules(true)}
             className="flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold"
             style={{ borderColor: "var(--border)" }}
           >
-            <Settings2 size={14} /> Defaults
+            <Settings2 size={14} /> {t("defaults")}
           </button>
           <button
             onClick={generate}
@@ -113,7 +116,7 @@ export function RidesClient({
             className="flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold disabled:opacity-50"
             style={{ borderColor: "var(--border)" }}
           >
-            <Sparkles size={14} /> {generating ? "Generating…" : "Generate week"}
+            <Sparkles size={14} /> {generating ? t("generating") : t("generateWeek")}
           </button>
         </div>
       </div>
@@ -130,7 +133,7 @@ export function RidesClient({
             <p key={i}>{w}</p>
           ))}
           <button onClick={() => setEmailWarnings([])} className="self-start underline">
-            Dismiss
+            {t("dismiss")}
           </button>
         </div>
       )}
@@ -140,7 +143,7 @@ export function RidesClient({
           className="rounded-md px-3 py-1.5 text-xs font-semibold text-white"
           style={{ background: "var(--danger)" }}
         >
-          {unassignedCount} ride{unassignedCount === 1 ? "" : "s"} need a driver
+          {unassignedCount} {t(unassignedCount === 1 ? "rideNeedDriverSingular" : "rideNeedDriverPlural")}
         </div>
       )}
 
@@ -149,7 +152,7 @@ export function RidesClient({
           <ChevronLeft size={20} />
         </button>
         <p className="text-sm font-semibold">
-          {MONTH_LABELS[anchor.getMonth()]} {anchor.getDate()} – {MONTH_LABELS[addDays(anchor, 6).getMonth()]}{" "}
+          {monthLabels[anchor.getMonth()]} {anchor.getDate()} – {monthLabels[addDays(anchor, 6).getMonth()]}{" "}
           {addDays(anchor, 6).getDate()}
         </p>
         <button onClick={() => setAnchor((a) => addDays(a, 7))} className="rounded p-1.5" style={{ color: "var(--text-muted)" }}>
@@ -159,7 +162,7 @@ export function RidesClient({
 
       {loading && (
         <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
-          Loading…
+          {t("loading")}
         </p>
       )}
 
@@ -171,11 +174,11 @@ export function RidesClient({
           return (
             <div key={ymd(day)} className="flex flex-col gap-2">
               <p className="rink-label text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
-                {WEEKDAY_LABELS[day.getDay()]} {MONTH_LABELS[day.getMonth()]} {day.getDate()}
+                {weekdayLabels[day.getDay()]} {monthLabels[day.getMonth()]} {day.getDate()}
               </p>
               {dayRides.length === 0 ? (
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  No ride legs
+                  {t("noRideLegs")}
                 </p>
               ) : (
                 dayRides.map((ride) => (
@@ -199,7 +202,7 @@ export function RidesClient({
         className="fixed bottom-24 right-4 z-30 flex items-center gap-1 rounded-full px-4 py-3 text-sm font-semibold shadow-lg"
         style={{ background: "var(--accent)", color: "var(--accent-text)" }}
       >
-        <Plus size={16} /> Ride
+        <Plus size={16} /> {t("addRide")}
       </button>
 
       {assigningId && (

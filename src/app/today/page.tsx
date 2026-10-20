@@ -1,7 +1,7 @@
 import { db } from "@/db";
 import { events, dinnerMenu, rides } from "@/db/schema";
 import { and, ne, or, isNull, gte, lte, eq } from "drizzle-orm";
-import { parseWallClockOrUtc, utcToZonedParts, WEEKDAY_LABELS, MONTH_LABELS } from "@/lib/dates";
+import { parseWallClockOrUtc, utcToZonedParts } from "@/lib/dates";
 import { FAMILY_TIMEZONE } from "@/lib/family-constants";
 import { getHebcalInfo } from "@/lib/hebcal";
 import { getSetting } from "@/lib/settings";
@@ -40,12 +40,9 @@ export default async function TodayPage() {
 
   const hebcal = await getHebcalInfo(zip);
 
-  const todayDateOnly = new Date(`${today}T00:00:00`);
-  const heading = `${WEEKDAY_LABELS[todayDateOnly.getDay()]}, ${MONTH_LABELS[todayDateOnly.getMonth()]} ${todayDateOnly.getDate()}`;
-
   return (
     <TodayClient
-      heading={heading}
+      todayDate={today}
       hebrewDate={hebcal.hebrewDateToday}
       candleStrip={
         hebcal.isErevShabbatOrYomTov

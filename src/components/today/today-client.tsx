@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, Utensils, Flame } from "lucide-react";
 import { EventRow } from "@/components/events/event-row";
@@ -10,6 +10,7 @@ import { RideRow } from "@/components/rides/ride-row";
 import { DriverPicker } from "@/components/rides/driver-picker";
 import type { ExternalDriverRecord, RideRecord } from "@/components/rides/types";
 import { QuickAdd } from "@/components/capture/quick-add";
+import { useLocale } from "@/lib/i18n";
 
 type TimelineItem =
   | { kind: "event"; time: number; event: EventRecord }
@@ -23,7 +24,7 @@ function rideTimestamp(date: string, time: string): number {
 }
 
 export function TodayClient({
-  heading,
+  todayDate,
   hebrewDate,
   candleStrip,
   initialEvents,
@@ -32,7 +33,7 @@ export function TodayClient({
   externalDrivers,
   dinner,
 }: {
-  heading: string;
+  todayDate: string;
   hebrewDate: string | null;
   candleStrip: { candleLighting: string | null; parasha: string | null; yomTovToday: string | null } | null;
   initialEvents: EventRecord[];
@@ -42,6 +43,11 @@ export function TodayClient({
   dinner: { meal: string; isYomTov: boolean } | null;
 }) {
   const router = useRouter();
+  const { t, weekdayLabels, monthLabels } = useLocale();
+  const heading = useMemo(() => {
+    const d = new Date(`${todayDate}T00:00:00`);
+    return `${weekdayLabels[d.getDay()]}, ${monthLabels[d.getMonth()]} ${d.getDate()}`;
+  }, [todayDate, weekdayLabels, monthLabels]);
   const [eventList, setEventList] = useState(initialEvents);
   const [ridesList, setRidesList] = useState(initialRides);
   const [modalEvent, setModalEvent] = useState<EventRecord | "new" | null>(null);
@@ -78,7 +84,7 @@ export function TodayClient({
   }
 
   async function removeRide(rideId: string) {
-    if (!confirm("Delete this ride?")) return;
+    if (!confirm(t("deleteRideConfirm"))) return;
     const res = await fetch(`/api/rides/${rideId}`, { method: "DELETE" });
     if (res.ok) setRidesList((prev) => prev.filter((r) => r.id !== rideId));
   }
@@ -109,7 +115,7 @@ export function TodayClient({
           className="flex items-center gap-1 rounded-full px-3 py-2 text-sm font-semibold"
           style={{ background: "var(--accent)", color: "var(--accent-text)" }}
         >
-          <Plus size={16} /> Add
+          <Plus size={16} /> {t("add")}
         </button>
       </div>
 
@@ -128,7 +134,7 @@ export function TodayClient({
                 {candleStrip.candleLighting && (
                   <>
                     {" "}
-                    · Candle lighting{" "}
+                    · {t("candleLighting")}{" "}
                     {new Date(candleStrip.candleLighting).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
                   </>
                 )}
@@ -147,8 +153,8 @@ export function TodayClient({
         >
           <Utensils size={16} style={{ color: "var(--accent)" }} />
           <span>
-            Tonight: <strong>{dinner.meal}</strong>
-            {dinner.isYomTov && <span style={{ color: "var(--text-muted)" }}> · Yom Tov</span>}
+            {t("tonight")} <strong>{dinner.meal}</strong>
+            {dinner.isYomTov && <span style={{ color: "var(--text-muted)" }}> · {t("yomTov")}</span>}
           </span>
         </div>
       )}
@@ -156,7 +162,7 @@ export function TodayClient({
       <div className="flex flex-col gap-2">
         {timeline.length === 0 && (
           <p className="py-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-            Nothing on the run-of-show yet today.
+            {t("nothingToday")}
           </p>
         )}
         {timeline.map((item, i) =>

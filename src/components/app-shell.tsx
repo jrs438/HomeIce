@@ -5,6 +5,7 @@ import { Header } from "./header";
 import { BottomNav } from "./bottom-nav";
 import { SwRegister } from "./sw-register";
 import { InstallPrompt } from "./install-prompt";
+import { LocaleProvider } from "@/lib/i18n";
 
 export type CurrentMember = {
   id: string;
@@ -21,19 +22,23 @@ export function AppShell({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
-  const chromeless = pathname?.startsWith("/login") || pathname?.startsWith("/install");
+  const chromeless = pathname?.startsWith("/login") || pathname?.startsWith("/install") || pathname?.startsWith("/print");
 
   if (chromeless) {
-    return <main className="flex-1 flex flex-col">{children}</main>;
+    return (
+      <LocaleProvider>
+        <main className="flex-1 flex flex-col">{children}</main>
+      </LocaleProvider>
+    );
   }
 
   return (
-    <>
+    <LocaleProvider>
       <SwRegister />
       <InstallPrompt />
       <Header member={member} />
       <main className="flex-1 flex flex-col pb-20">{children}</main>
       <BottomNav />
-    </>
+    </LocaleProvider>
   );
 }
