@@ -1,9 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Printer } from "lucide-react";
+import Link from "next/link";
+import { createElement } from "react";
+import { ChevronLeft, Printer, MapPin } from "lucide-react";
 import { addDays, ymd } from "@/lib/dates";
 import { useLocale, type TranslationKey } from "@/lib/i18n";
+import { iconForEvent } from "@/lib/event-icon";
 import type { EventRecord, MemberLite } from "@/components/events/types";
 import type { ExternalDriverRecord, RideRecord } from "@/components/rides/types";
 
@@ -53,25 +56,29 @@ export function PrintClient({
     return Array.from({ length: count }, (_, i) => addDays(start, i));
   }, [todayDate, view]);
 
-  function driverLabel(ride: RideRecord): string {
-    if (ride.driverType === "unassigned") return t("unassigned");
-    if (ride.driverType === "member") return members.find((m) => m.id === ride.driverId)?.name ?? t("unassigned");
-    if (ride.driverType === "external") return externalDrivers.find((d) => d.id === ride.driverId)?.label ?? t("unassigned");
-    if (ride.driverType === "carpool") return t("carpool");
-    return t("unassigned");
+  function driverInfo(ride: RideRecord): { label: string; assigned: boolean } {
+    if (ride.driverType === "member") {
+      const m = members.find((mm) => mm.id === ride.driverId);
+      if (m) return { label: m.name, assigned: true };
+    }
+    if (ride.driverType === "external") {
+      const d = externalDrivers.find((dd) => dd.id === ride.driverId);
+      if (d) return { label: d.label, assigned: true };
+    }
+    if (ride.driverType === "carpool") return { label: t("carpool"), assigned: true };
+    return { label: t("unassigned"), assigned: false };
   }
 
-  function kidNames(kidIds: string[]): string {
-    return members
-      .filter((m) => kidIds.includes(m.id))
-      .map((m) => m.name)
-      .join(", ");
+  function kidsFor(kidIds: string[]) {
+    return members.filter((m) => kidIds.includes(m.id));
   }
 
   return (
     <div className="mx-auto w-full max-w-2xl flex-1 px-4 py-5 print:max-w-none print:px-0 print:py-0">
       <div className="mb-4 flex items-center justify-between print:hidden">
-        <h1 className="masthead text-xl">{t("printTitle")}</h1>
+        <Link href="/today" className="flex items-center gap-1 text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
+          <ChevronLeft size={18} /> {t("back")}
+        </Link>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setLocale(locale === "en" ? "pt" : "en")}
@@ -89,6 +96,8 @@ export function PrintClient({
           </button>
         </div>
       </div>
+
+      <h1 className="masthead mb-3 text-xl print:text-2xl print:text-black">{t("printTitle")}</h1>
 
       <div className="mb-4 flex gap-2 print:hidden">
         <button
@@ -115,8 +124,6 @@ export function PrintClient({
         </button>
       </div>
 
-      <h1 className="mb-4 hidden text-2xl font-bold print:block">{t("printTitle")}</h1>
-
       <div className="flex flex-col gap-5">
         {days.map((day) => {
           const dayEvents = initialEvents.filter((e) => isSameLocalDay(e.start, day));
@@ -127,51 +134,106 @@ export function PrintClient({
           ].sort((a, b) => a.time - b.time);
 
           return (
-            <div
-              key={ymd(day)}
-              className="rounded-lg border p-3 print:break-inside-avoid print:rounded-none print:border-black print:p-2"
-              style={{ borderColor: "var(--border)" }}
-            >
-              <p className="mb-2 text-sm font-bold uppercase tracking-wide print:text-black">
+            <div key={ymd(day)} className="print:break-inside-avoid">
+              <p
+                className="mb-2 border-b-2 pb-1 text-sm font-bold uppercase tracking-wide print:border-black print:text-black"
+                style={{ borderColor: "var(--accent)" }}
+              >
                 {weekdayLabels[day.getDay()]}, {monthLabels[day.getMonth()]} {day.getDate()}
               </p>
               {timeline.length === 0 ? (
-                <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+                <p className="py-2 text-xs" style={{ color: "var(--text-muted)" }}>
                   {t("noItemsThisDay")}
                 </p>
               ) : (
-                <div className="flex flex-col gap-1.5">
+                <div className="flex flex-col gap-2">
                   {timeline.map((item) =>
                     item.kind === "event" ? (
-                      <div key={`e-${item.event.id}`} className="text-sm print:text-black">
-                        <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
+                      <div
+                        key={`e-${item.event.id}`}
+                        className="flex items-start gap-3 rounded-lg border px-3 py-2 print:rounded-none print:border-black"
+                        style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
+                      >
+                        <div className="w-16 shrink-0 pt-0.5 font-mono text-xs font-semibold print:text-black" style={{ color: "var(--text-muted)" }}>
                           {item.event.allDay
                             ? t("allDay")
                             : new Date(item.event.start).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
-                        </span>{" "}
-                        <strong>{item.event.title}</strong>
-                        {item.event.location && <span> — {item.event.location}</span>}
-                        {item.event.kidIds.length > 0 && (
-                          <span style={{ color: "var(--text-muted)" }}> ({kidNames(item.event.kidIds)})</span>
-                        )}
+                        </div>
+                        <div
+                          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg print:hidden"
+                          style={{ background: "var(--tile-bg)", color: "var(--tile-fg)" }}
+                        >
+                          {createElement(iconForEvent(item.event.title), { size: 16 })}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-bold print:text-black">{item.event.title}</p>
+                          {item.event.location && (
+                            <p className="flex items-center gap-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
+                              <MapPin size={11} className="print:hidden" /> {item.event.location}
+                            </p>
+                          )}
+                          {item.event.kidIds.length > 0 && (
+                            <div className="mt-1 flex flex-wrap gap-1">
+                              {kidsFor(item.event.kidIds).map((k) => (
+                                <span
+                                  key={k.id}
+                                  className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white print:!border print:!border-black print:!bg-white print:!text-black"
+                                  style={{ background: k.color }}
+                                >
+                                  {k.name}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     ) : (
-                      <div key={`r-${item.ride.id}`} className="text-sm print:text-black">
-                        <span className="font-mono text-xs" style={{ color: "var(--text-muted)" }}>
-                          {new Date(`${item.ride.date}T${item.ride.time}`).toLocaleTimeString([], {
-                            hour: "numeric",
-                            minute: "2-digit",
-                          })}
-                        </span>{" "}
-                        <strong>{t(RIDE_KIND_KEYS[item.ride.kind])}</strong>: {item.ride.from} → {item.ride.to}
-                        {item.ride.kidIds.length > 0 && (
-                          <span style={{ color: "var(--text-muted)" }}> ({kidNames(item.ride.kidIds)})</span>
-                        )}
-                        <span style={{ color: "var(--text-muted)" }}>
-                          {" "}
-                          — {t("driverLabel")}: {driverLabel(item.ride)}
-                        </span>
-                      </div>
+                      (() => {
+                        const driver = driverInfo(item.ride);
+                        return (
+                          <div
+                            key={`r-${item.ride.id}`}
+                            className="flex items-start gap-3 rounded-lg border px-3 py-2 print:rounded-none print:border-black"
+                            style={{
+                              borderColor: driver.assigned ? "var(--border)" : "var(--danger)",
+                              background: "var(--bg-panel)",
+                            }}
+                          >
+                            <div className="w-16 shrink-0 pt-0.5 font-mono text-xs font-semibold print:text-black" style={{ color: "var(--text-muted)" }}>
+                              {new Date(`${item.ride.date}T${item.ride.time}`).toLocaleTimeString([], {
+                                hour: "numeric",
+                                minute: "2-digit",
+                              })}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-bold print:text-black">
+                                {t(RIDE_KIND_KEYS[item.ride.kind])} · {item.ride.from} → {item.ride.to}
+                              </p>
+                              <div className="mt-1 flex flex-wrap items-center gap-1">
+                                {kidsFor(item.ride.kidIds).map((k) => (
+                                  <span
+                                    key={k.id}
+                                    className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white print:!border print:!border-black print:!bg-white print:!text-black"
+                                    style={{ background: k.color }}
+                                  >
+                                    {k.name}
+                                  </span>
+                                ))}
+                                <span
+                                  className="rounded-full px-2 py-0.5 text-[10px] font-bold print:!border print:!border-black print:!bg-white print:!text-black"
+                                  style={{
+                                    background: driver.assigned ? "transparent" : "var(--danger)",
+                                    color: driver.assigned ? "var(--text-muted)" : "white",
+                                    border: driver.assigned ? "1px solid var(--border)" : "none",
+                                  }}
+                                >
+                                  {t("driverLabel")}: {driver.label}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })()
                     )
                   )}
                 </div>
