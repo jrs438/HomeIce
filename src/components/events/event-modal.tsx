@@ -4,9 +4,15 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { Modal } from "@/components/modal";
 import { ymd } from "@/lib/dates";
-import { RIDE_KIND_LABELS } from "@/components/rides/types";
+import { useLocale, type TranslationKey } from "@/lib/i18n";
 import type { RideRecord } from "@/components/rides/types";
 import type { EventRecord, MemberLite } from "./types";
+
+const RIDE_KIND_KEYS: Record<RideRecord["kind"], TranslationKey> = {
+  activity_dropoff: "dropOff",
+  activity_pickup: "pickup",
+  school_pickup: "schoolPickup",
+};
 
 function toLocalInput(dt: string | null, allDay: boolean): string {
   if (!dt) return "";
@@ -17,11 +23,11 @@ function toLocalInput(dt: string | null, allDay: boolean): string {
   return `${date}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-function driverLabel(ride: RideRecord, members: MemberLite[]): string {
-  if (ride.driverType === "unassigned") return "Unassigned";
-  if (ride.driverType === "member") return members.find((m) => m.id === ride.driverId)?.name ?? "Member";
-  if (ride.driverType === "carpool") return "Carpool";
-  return "External driver";
+function driverLabel(ride: RideRecord, members: MemberLite[], t: (k: TranslationKey) => string): string {
+  if (ride.driverType === "unassigned") return t("unassigned");
+  if (ride.driverType === "member") return members.find((m) => m.id === ride.driverId)?.name ?? t("memberFallback");
+  if (ride.driverType === "carpool") return t("carpool");
+  return t("externalDriverFallback");
 }
 
 export function EventModal({
@@ -39,6 +45,7 @@ export function EventModal({
   onSaved: (event: EventRecord) => void;
   onDeleted?: (id: string) => void;
 }) {
+  const { t } = useLocale();
   const [title, setTitle] = useState(initial?.title ?? "");
   const [allDay, setAllDay] = useState(initial?.allDay ?? false);
   const [start, setStart] = useState(
@@ -97,7 +104,7 @@ export function EventModal({
 
   async function save() {
     if (!title.trim() || !start) {
-      setError("Title and start are required");
+      setError(t("titleStartRequired"));
       return;
     }
     setSaving(true);
@@ -118,7 +125,7 @@ export function EventModal({
         body: JSON.stringify(payload),
       });
       if (!res.ok) {
-        setError("Could not save event");
+        setError(t("couldNotSaveEvent"));
         return;
       }
       const saved = await res.json();
@@ -206,11 +213,11 @@ export function EventModal({
   }
 
   return (
-    <Modal title={initial ? "Edit event" : "Add event"} onClose={onClose}>
+    <Modal title={initial ? t("editEvent") : t("addEvent")} onClose={onClose}>
       <div className="flex flex-col gap-3">
         {initial?.source === "recurring" && (
           <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-            Part of a recurring series — edits here only affect this occurrence.
+            {t("partOfRecurring")}
           </p>
         )}
 
@@ -218,19 +225,19 @@ export function EventModal({
           autoFocus
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          placeholder="Title (e.g. Jonah hockey practice)"
+          placeholder={t("titlePlaceholder")}
           className="rounded-md border px-3 py-2 text-sm"
           style={{ borderColor: "var(--border)", background: "var(--bg)" }}
         />
 
         <label className="flex items-center gap-2 text-sm">
           <input type="checkbox" checked={allDay} onChange={(e) => setAllDay(e.target.checked)} />
-          All day
+          {t("allDay")}
         </label>
 
         <div className="flex gap-2">
           <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            Start
+            {t("startLabel")}
             <input
               type={allDay ? "date" : "datetime-local"}
               value={start}
@@ -240,7 +247,7 @@ export function EventModal({
             />
           </label>
           <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            End (optional)
+            {t("endOptionalLabel")}
             <input
               type={allDay ? "date" : "datetime-local"}
               value={end}
@@ -258,14 +265,14 @@ export function EventModal({
             if (!dropoffTo) setDropoffTo(e.target.value);
             if (!pickupFrom) setPickupFrom(e.target.value);
           }}
-          placeholder="Location (optional)"
+          placeholder={t("locationOptionalPlaceholder")}
           className="rounded-md border px-3 py-2 text-sm"
           style={{ borderColor: "var(--border)", background: "var(--bg)" }}
         />
 
         <div>
           <p className="mb-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            Kids
+            {t("kidsLabel")}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {kids.map((k) => (
@@ -288,7 +295,7 @@ export function EventModal({
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          placeholder="Notes (optional)"
+          placeholder={t("notesOptionalPlaceholder")}
           rows={2}
           className="rounded-md border px-3 py-2 text-sm"
           style={{ borderColor: "var(--border)", background: "var(--bg)" }}
@@ -297,16 +304,16 @@ export function EventModal({
         {kidIds.length > 0 && !allDay && (
           <div className="rounded-md border p-3" style={{ borderColor: "var(--border)" }}>
             <p className="mb-2 text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-              Rides
+              {t("ridesSection")}
             </p>
 
             {linkedRides.length > 0 && (
               <ul className="mb-2 flex flex-col gap-1">
                 {linkedRides.map((r) => (
                   <li key={r.id} className="text-sm">
-                    {RIDE_KIND_LABELS[r.kind]}: {r.from} → {r.to} at {r.time.slice(0, 5)} —{" "}
+                    {t(RIDE_KIND_KEYS[r.kind])}: {r.from} → {r.to} at {r.time.slice(0, 5)} —{" "}
                     <span style={{ color: r.driverType === "unassigned" ? "var(--danger)" : "var(--text-muted)" }}>
-                      {driverLabel(r, members)}
+                      {driverLabel(r, members, t)}
                     </span>
                   </li>
                 ))}
@@ -317,21 +324,21 @@ export function EventModal({
               <div className="mb-2">
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={addDropoff} onChange={toggleDropoff} />
-                  Needs a drop-off ride
+                  {t("needsDropoffRide")}
                 </label>
                 {addDropoff && (
                   <div className="mt-1.5 flex gap-1.5 pl-6">
                     <input
                       value={dropoffFrom}
                       onChange={(e) => setDropoffFrom(e.target.value)}
-                      placeholder="From"
+                      placeholder={t("fromPlaceholder")}
                       className="w-0 flex-1 rounded-md border px-2 py-1.5 text-xs"
                       style={{ borderColor: "var(--border)", background: "var(--bg)" }}
                     />
                     <input
                       value={dropoffTo}
                       onChange={(e) => setDropoffTo(e.target.value)}
-                      placeholder="To"
+                      placeholder={t("toPlaceholder")}
                       className="w-0 flex-1 rounded-md border px-2 py-1.5 text-xs"
                       style={{ borderColor: "var(--border)", background: "var(--bg)" }}
                     />
@@ -351,21 +358,21 @@ export function EventModal({
               <div>
                 <label className="flex items-center gap-2 text-sm">
                   <input type="checkbox" checked={addPickup} onChange={togglePickup} />
-                  Needs a pick-up ride
+                  {t("needsPickupRide")}
                 </label>
                 {addPickup && (
                   <div className="mt-1.5 flex gap-1.5 pl-6">
                     <input
                       value={pickupFrom}
                       onChange={(e) => setPickupFrom(e.target.value)}
-                      placeholder="From"
+                      placeholder={t("fromPlaceholder")}
                       className="w-0 flex-1 rounded-md border px-2 py-1.5 text-xs"
                       style={{ borderColor: "var(--border)", background: "var(--bg)" }}
                     />
                     <input
                       value={pickupTo}
                       onChange={(e) => setPickupTo(e.target.value)}
-                      placeholder="To"
+                      placeholder={t("toPlaceholder")}
                       className="w-0 flex-1 rounded-md border px-2 py-1.5 text-xs"
                       style={{ borderColor: "var(--border)", background: "var(--bg)" }}
                     />
@@ -383,7 +390,7 @@ export function EventModal({
 
             {linkedRides.length > 0 && (
               <Link href="/rides" className="mt-2 inline-block text-xs underline" style={{ color: "var(--text-muted)" }}>
-                Manage drivers on the Rides tab
+                {t("manageDriversLink")}
               </Link>
             )}
           </div>
@@ -398,7 +405,7 @@ export function EventModal({
             className="flex-1 rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-50"
             style={{ background: "var(--accent)", color: "var(--accent-text)" }}
           >
-            {saving ? "Saving…" : "Save"}
+            {saving ? t("savingButton") : t("saveButton")}
           </button>
           {initial && initial.status !== "cancelled" && (
             <button
@@ -407,7 +414,7 @@ export function EventModal({
               className="rounded-md border px-3 py-2 text-sm font-medium"
               style={{ borderColor: "var(--danger)", color: "var(--danger)" }}
             >
-              {initial.source === "recurring" ? "Skip this occurrence" : "Cancel event"}
+              {initial.source === "recurring" ? t("skipOccurrence") : t("cancelEventButton")}
             </button>
           )}
         </div>

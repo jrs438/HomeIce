@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Check, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { useLocale } from "@/lib/i18n";
 
 type Kid = { id: string; name: string; color: string };
 type Chore = {
@@ -23,6 +24,7 @@ export function JobsClient({
   kids: Kid[];
   initialChores: Chore[];
 }) {
+  const { t } = useLocale();
   const [choresList, setChoresList] = useState(initialChores);
   const [newTitle, setNewTitle] = useState<Record<string, string>>({});
   const [resetting, setResetting] = useState(false);
@@ -72,8 +74,8 @@ export function JobsClient({
       const data = await res.json();
       setResetMsg(
         data.created > 0
-          ? `Rolled ${data.created} job${data.created === 1 ? "" : "s"} into next week.`
-          : data.note ?? "Nothing to roll over yet."
+          ? t(data.created === 1 ? "rolledJobsSingular" : "rolledJobsPlural").replace("{n}", String(data.created))
+          : data.note ?? t("nothingToRollOver")
       );
     } finally {
       setResetting(false);
@@ -83,14 +85,14 @@ export function JobsClient({
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-5 px-4 py-5">
       <div className="flex items-center justify-between">
-        <h1 className="masthead text-xl">JOBS</h1>
+        <h1 className="masthead text-xl">{t("jobsHeading")}</h1>
         <button
           onClick={resetWeek}
           disabled={resetting}
           className="flex items-center gap-1 rounded-md border px-2.5 py-1.5 text-xs font-semibold disabled:opacity-50"
           style={{ borderColor: "var(--border)" }}
         >
-          <RotateCcw size={14} /> {resetting ? "Rolling…" : "Roll to next week"}
+          <RotateCcw size={14} /> {resetting ? t("rollingButton") : t("rollToNextWeek")}
         </button>
       </div>
 
@@ -102,7 +104,7 @@ export function JobsClient({
 
       {kids.length === 0 && (
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          No kids set up yet — add them in Settings.
+          {t("noKidsSetup")}
         </p>
       )}
 
@@ -123,7 +125,7 @@ export function JobsClient({
             <div className="flex flex-col gap-1.5">
               {kidChores.length === 0 && (
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  No jobs this week.
+                  {t("noJobsThisWeek")}
                 </p>
               )}
               {kidChores.map((chore) => (
@@ -161,7 +163,7 @@ export function JobsClient({
                 value={newTitle[kid.id] ?? ""}
                 onChange={(e) => setNewTitle((prev) => ({ ...prev, [kid.id]: e.target.value }))}
                 onKeyDown={(e) => e.key === "Enter" && addChore(kid.id)}
-                placeholder={`Add a job for ${kid.name}…`}
+                placeholder={t("addJobForPlaceholder").replace("{name}", kid.name)}
                 className="flex-1 rounded-md border px-3 py-1.5 text-sm"
                 style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
               />

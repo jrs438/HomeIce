@@ -2,7 +2,8 @@
 
 import { useState } from "react";
 import { Flame, Heart, Plus, ArrowRight } from "lucide-react";
-import { addDays, ymd, WEEKDAY_LABELS, MONTH_LABELS } from "@/lib/dates";
+import { addDays, ymd } from "@/lib/dates";
+import { useLocale } from "@/lib/i18n";
 
 type DinnerMenuRow = { id: string; date: string; meal: string; requestedBy: string | null; isYomTov: boolean };
 type DinnerRequest = { id: string; memberId: string | null; text: string; votes: string[] };
@@ -23,6 +24,7 @@ export function EatClient({
   currentMemberId: string | null;
   yomTovDates: string[];
 }) {
+  const { t, weekdayLabels, monthLabels } = useLocale();
   const yomTovSet = new Set(yomTovDates);
   const weekStart = new Date(weekStartIso);
   const [menu, setMenu] = useState(initialMenu);
@@ -106,7 +108,7 @@ export function EatClient({
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-4 py-5">
-      <h1 className="masthead text-xl">EAT</h1>
+      <h1 className="masthead text-xl">{t("eatHeading")}</h1>
 
       <div className="flex flex-col gap-2">
         {days.map((day) => {
@@ -124,11 +126,11 @@ export function EatClient({
             >
               <div className="w-24 shrink-0">
                 <p className="text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
-                  {WEEKDAY_LABELS[day.getDay()]} {MONTH_LABELS[day.getMonth()]} {day.getDate()}
+                  {weekdayLabels[day.getDay()]} {monthLabels[day.getMonth()]} {day.getDate()}
                 </p>
                 {(isShabbat || isYomTov) && (
                   <p className="flex items-center gap-1 text-[11px] font-semibold" style={{ color: "var(--accent)" }}>
-                    <Flame size={11} /> {isYomTov ? "Yom Tov" : "Shabbat"}
+                    <Flame size={11} /> {isYomTov ? t("yomTov") : t("shabbatLabel")}
                   </p>
                 )}
               </div>
@@ -151,7 +153,7 @@ export function EatClient({
                   className="flex-1 text-left text-sm"
                   style={{ color: row ? "var(--text)" : "var(--text-muted)" }}
                 >
-                  {row ? row.meal : "Tap to plan…"}
+                  {row ? row.meal : t("tapToPlan")}
                 </button>
               )}
             </div>
@@ -161,7 +163,7 @@ export function EatClient({
 
       <div className="flex flex-col gap-3">
         <h2 className="text-sm font-bold uppercase tracking-wide" style={{ color: "var(--text-muted)" }}>
-          Requests
+          {t("requestsHeading")}
         </h2>
 
         <div className="flex gap-2">
@@ -169,7 +171,7 @@ export function EatClient({
             value={newRequest}
             onChange={(e) => setNewRequest(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && addRequest()}
-            placeholder="Request a meal…"
+            placeholder={t("requestMealPlaceholder")}
             className="flex-1 rounded-md border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
           />
@@ -185,7 +187,7 @@ export function EatClient({
         <div className="flex flex-col gap-1.5">
           {requests.length === 0 && (
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              No requests yet.
+              {t("noRequestsYet")}
             </p>
           )}
           {requests.map((req) => (
@@ -199,7 +201,7 @@ export function EatClient({
                   <p className="text-sm font-medium">{req.text}</p>
                   {memberName(req.memberId) && (
                     <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                      requested by {memberName(req.memberId)}
+                      {t("requestedByLabel").replace("{name}", memberName(req.memberId) ?? "")}
                     </p>
                   )}
                 </div>
@@ -219,7 +221,7 @@ export function EatClient({
                   className="flex items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold"
                   style={{ borderColor: "var(--border)" }}
                 >
-                  <ArrowRight size={13} /> Menu
+                  <ArrowRight size={13} /> {t("menuButton")}
                 </button>
               </div>
               {promotingId === req.id && (
@@ -231,7 +233,7 @@ export function EatClient({
                       className="rounded-full border px-2 py-1 text-[11px] font-medium"
                       style={{ borderColor: "var(--border)" }}
                     >
-                      {WEEKDAY_LABELS[day.getDay()]} {day.getDate()}
+                      {weekdayLabels[day.getDay()]} {day.getDate()}
                     </button>
                   ))}
                 </div>

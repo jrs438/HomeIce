@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Modal } from "@/components/modal";
 import type { MemberLite } from "@/components/events/types";
 import { ymd } from "@/lib/dates";
+import { useLocale } from "@/lib/i18n";
 import type { RideRecord } from "./types";
 
 export function RideModal({
@@ -17,6 +18,7 @@ export function RideModal({
   onClose: () => void;
   onSaved: (ride: RideRecord) => void;
 }) {
+  const { t } = useLocale();
   const [date, setDate] = useState(ymd(defaultDate));
   const [time, setTime] = useState("15:30");
   const [kind, setKind] = useState<RideRecord["kind"]>("activity_pickup");
@@ -34,7 +36,7 @@ export function RideModal({
 
   async function save() {
     if (!from.trim() || !to.trim()) {
-      setError("From and to are required");
+      setError(t("fromToRequired"));
       return;
     }
     setSaving(true);
@@ -46,7 +48,7 @@ export function RideModal({
         body: JSON.stringify({ date, time, kind, from: from.trim(), to: to.trim(), kidIds }),
       });
       if (!res.ok) {
-        setError("Could not save ride");
+        setError(t("couldNotSaveRide"));
         return;
       }
       onSaved(await res.json());
@@ -57,11 +59,11 @@ export function RideModal({
   }
 
   return (
-    <Modal title="Add ride" onClose={onClose}>
+    <Modal title={t("addRideTitle")} onClose={onClose}>
       <div className="flex flex-col gap-3">
         <div className="flex gap-2">
           <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            Date
+            {t("dateLabel")}
             <input
               type="date"
               value={date}
@@ -71,7 +73,7 @@ export function RideModal({
             />
           </label>
           <label className="flex flex-1 flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            Time
+            {t("timeLabel")}
             <input
               type="time"
               value={time}
@@ -83,16 +85,16 @@ export function RideModal({
         </div>
 
         <label className="flex flex-col gap-1 text-xs" style={{ color: "var(--text-muted)" }}>
-          Kind
+          {t("kindLabel")}
           <select
             value={kind}
             onChange={(e) => setKind(e.target.value as RideRecord["kind"])}
             className="rounded-md border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--bg)" }}
           >
-            <option value="activity_dropoff">Activity drop-off</option>
-            <option value="activity_pickup">Activity pickup</option>
-            <option value="school_pickup">School pickup</option>
+            <option value="activity_dropoff">{t("activityDropoffOption")}</option>
+            <option value="activity_pickup">{t("activityPickupOption")}</option>
+            <option value="school_pickup">{t("schoolPickup")}</option>
           </select>
         </label>
 
@@ -100,14 +102,14 @@ export function RideModal({
           <input
             value={from}
             onChange={(e) => setFrom(e.target.value)}
-            placeholder="From"
+            placeholder={t("fromPlaceholder")}
             className="flex-1 rounded-md border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--bg)" }}
           />
           <input
             value={to}
             onChange={(e) => setTo(e.target.value)}
-            placeholder="To"
+            placeholder={t("toPlaceholder")}
             className="flex-1 rounded-md border px-3 py-2 text-sm"
             style={{ borderColor: "var(--border)", background: "var(--bg)" }}
           />
@@ -115,7 +117,7 @@ export function RideModal({
 
         <div>
           <p className="mb-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            Kids
+            {t("kidsLabel")}
           </p>
           <div className="flex flex-wrap gap-1.5">
             {kids.map((k) => (
@@ -143,7 +145,7 @@ export function RideModal({
           className="rounded-md px-3 py-2 text-sm font-semibold disabled:opacity-50"
           style={{ background: "var(--accent)", color: "var(--accent-text)" }}
         >
-          {saving ? "Saving…" : "Save ride"}
+          {saving ? t("savingButton") : t("saveRideButton")}
         </button>
       </div>
     </Modal>

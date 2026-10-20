@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Plus, Check } from "lucide-react";
+import { useLocale } from "@/lib/i18n";
 
 type GroceryItem = {
   id: string;
@@ -21,6 +22,7 @@ export function ShopClient({
   initialItems: GroceryItem[];
   currentMemberName: string | null;
 }) {
+  const { t } = useLocale();
   const [items, setItems] = useState(initialItems);
   const [store, setStore] = useState(stores[0] ?? "");
   const [newItem, setNewItem] = useState("");
@@ -68,7 +70,7 @@ export function ShopClient({
 
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-4 px-4 py-5">
-      <h1 className="masthead text-xl">SHOP</h1>
+      <h1 className="masthead text-xl">{t("shopHeading")}</h1>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
         {stores.map((s) => (
@@ -103,7 +105,7 @@ export function ShopClient({
           value={newItem}
           onChange={(e) => setNewItem(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && addItem()}
-          placeholder={`Add to ${store}…`}
+          placeholder={t("addToStorePlaceholder").replace("{store}", store)}
           className="flex-1 rounded-md border px-3 py-2 text-sm"
           style={{ borderColor: "var(--border)", background: "var(--bg-panel)" }}
         />
@@ -120,7 +122,7 @@ export function ShopClient({
       <div className="flex flex-col gap-1.5">
         {storeItems.length === 0 && (
           <p className="py-10 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-            Nothing on the {store} list.
+            {t("nothingOnStoreList").replace("{store}", store)}
           </p>
         )}
         {storeItems.map((item) => (
@@ -148,7 +150,7 @@ export function ShopClient({
               </p>
               {item.addedBy && (
                 <p className="text-[11px]" style={{ color: "var(--text-muted)" }}>
-                  added by {item.addedBy}
+                  {t("addedByLabel").replace("{name}", item.addedBy)}
                 </p>
               )}
             </div>

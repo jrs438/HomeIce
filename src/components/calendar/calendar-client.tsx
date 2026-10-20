@@ -7,9 +7,16 @@ import { EventModal } from "@/components/events/event-modal";
 import { EventRulesEditor } from "./event-rules-editor";
 import type { EventRecord, MemberLite } from "@/components/events/types";
 import type { EventRuleRecord } from "@/components/rides/types";
-import { addDays, startOfDay, startOfWeek, isSameDay, ymd, WEEKDAY_LABELS, MONTH_LABELS } from "@/lib/dates";
+import { addDays, startOfDay, startOfWeek, isSameDay, ymd } from "@/lib/dates";
+import { useLocale, type TranslationKey } from "@/lib/i18n";
 
 type ViewMode = "month" | "week" | "day";
+
+const VIEW_LABEL_KEYS: Record<ViewMode, TranslationKey> = {
+  month: "viewMonth",
+  week: "viewWeek",
+  day: "viewDay",
+};
 
 const KID_FILTER_KEY = "hi-calendar-kid-filter";
 
@@ -43,6 +50,7 @@ function setStoredKidFilter(value: string[] | null) {
 }
 
 export function CalendarClient({ members }: { members: MemberLite[] }) {
+  const { t, weekdayLabels, monthLabels } = useLocale();
   const [view, setView] = useState<ViewMode>("month");
   const [anchor, setAnchor] = useState(() => startOfDay(new Date()));
   const [eventsList, setEventsList] = useState<EventRecord[]>([]);
@@ -140,21 +148,21 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
 
   const title =
     view === "month"
-      ? `${MONTH_LABELS[anchor.getMonth()]} ${anchor.getFullYear()}`
+      ? `${monthLabels[anchor.getMonth()]} ${anchor.getFullYear()}`
       : view === "week"
-        ? `${MONTH_LABELS[rangeStart.getMonth()]} ${rangeStart.getDate()} – ${MONTH_LABELS[addDays(rangeStart, 6).getMonth()]} ${addDays(rangeStart, 6).getDate()}`
-        : `${WEEKDAY_LABELS[anchor.getDay()]}, ${MONTH_LABELS[anchor.getMonth()]} ${anchor.getDate()}`;
+        ? `${monthLabels[rangeStart.getMonth()]} ${rangeStart.getDate()} – ${monthLabels[addDays(rangeStart, 6).getMonth()]} ${addDays(rangeStart, 6).getDate()}`
+        : `${weekdayLabels[anchor.getDay()]}, ${monthLabels[anchor.getMonth()]} ${anchor.getDate()}`;
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-1 flex-col gap-4 px-4 py-5">
       <div className="flex items-center justify-between">
-        <h1 className="masthead text-xl">CALENDAR</h1>
+        <h1 className="masthead text-xl">{t("calendarHeading")}</h1>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowRulesEditor(true)}
             className="rounded-full border p-1.5"
             style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
-            aria-label="Recurring events"
+            aria-label={t("recurringEventsAria")}
           >
             <Repeat size={16} />
           </button>
@@ -163,13 +171,13 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
               <button
                 key={v}
                 onClick={() => setView(v)}
-                className="rounded-full px-3 py-1 text-xs font-semibold capitalize"
+                className="rounded-full px-3 py-1 text-xs font-semibold"
                 style={{
                   background: view === v ? "var(--accent)" : "transparent",
                   color: view === v ? "var(--accent-text)" : "var(--text-muted)",
                 }}
               >
-                {v}
+                {t(VIEW_LABEL_KEYS[v])}
               </button>
             ))}
           </div>
@@ -216,7 +224,7 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
             className="rounded-full border px-2 py-0.5 text-[11px] font-medium"
             style={{ borderColor: "var(--border)", color: "var(--text-muted)" }}
           >
-            Today
+            {t("today")}
           </button>
         </div>
         <button onClick={() => step(1)} className="rounded p-1.5" style={{ color: "var(--text-muted)" }}>
@@ -226,7 +234,7 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
 
       {loading && (
         <p className="text-center text-xs" style={{ color: "var(--text-muted)" }}>
-          Loading…
+          {t("loading")}
         </p>
       )}
 
@@ -249,11 +257,11 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
           {Array.from({ length: view === "week" ? 7 : 1 }, (_, i) => addDays(rangeStart, i)).map((day) => (
             <div key={ymd(day)} className="flex flex-col gap-2">
               <p className="rink-label text-xs font-semibold" style={{ color: "var(--text-muted)" }}>
-                {WEEKDAY_LABELS[day.getDay()]} {MONTH_LABELS[day.getMonth()]} {day.getDate()}
+                {weekdayLabels[day.getDay()]} {monthLabels[day.getMonth()]} {day.getDate()}
               </p>
               {eventsOn(day).length === 0 ? (
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>
-                  Nothing scheduled
+                  {t("noItemsThisDay")}
                 </p>
               ) : (
                 eventsOn(day).map((event) => (
@@ -270,7 +278,7 @@ export function CalendarClient({ members }: { members: MemberLite[] }) {
         className="fixed bottom-24 right-4 z-30 rounded-full px-4 py-3 text-sm font-semibold shadow-lg"
         style={{ background: "var(--accent)", color: "var(--accent-text)" }}
       >
-        + Add
+        + {t("add")}
       </button>
 
       {modalEvent && (
@@ -315,6 +323,7 @@ function MonthGrid({
   onDayClick: (d: Date) => void;
   onEventClick: (e: EventRecord) => void;
 }) {
+  const { weekdayLabels } = useLocale();
   const days: Date[] = [];
   for (let d = gridStart; d < gridEnd; d = addDays(d, 1)) days.push(d);
   const today = startOfDay(new Date());
@@ -322,7 +331,7 @@ function MonthGrid({
   return (
     <div className="flex flex-col gap-1">
       <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold" style={{ color: "var(--text-muted)" }}>
-        {WEEKDAY_LABELS.map((d) => (
+        {weekdayLabels.map((d) => (
           <div key={d}>{d}</div>
         ))}
       </div>
