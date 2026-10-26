@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { createElement } from "react";
 import { ChevronLeft, Printer, MapPin } from "lucide-react";
@@ -34,6 +34,24 @@ function isSameLocalDay(iso: string, day: Date): boolean {
   return d.getFullYear() === day.getFullYear() && d.getMonth() === day.getMonth() && d.getDate() === day.getDate();
 }
 
+function standaloneMediaQuery(): MediaQueryList {
+  return window.matchMedia("(display-mode: standalone)");
+}
+
+function subscribeStandalone(callback: () => void) {
+  const mq = standaloneMediaQuery();
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+
+function getStandaloneSnapshot(): boolean {
+  return standaloneMediaQuery().matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
+}
+
+function getServerStandaloneSnapshot(): boolean {
+  return false;
+}
+
 export function PrintClient({
   todayDate,
   initialEvents,
@@ -49,6 +67,20 @@ export function PrintClient({
 }) {
   const { t, locale, setLocale, weekdayLabels, monthLabels } = useLocale();
   const [view, setView] = useState<ViewMode>("week");
+
+  // window.print() is a silent no-op in an installed/home-screen PWA on iOS
+  // (standalone display mode) — there's no Safari chrome to host the print
+  // sheet. The documented workaround is to re-open the same page in a real
+  // browser tab, where printing works normally.
+  const isStandalone = useSyncExternalStore(subscribeStandalone, getStandaloneSnapshot, getServerStandaloneSnapshot);
+
+  function handlePrint() {
+    if (isStandalone) {
+      window.open(window.location.href, "_blank");
+    } else {
+      window.print();
+    }
+  }
 
   const days = useMemo(() => {
     const start = new Date(`${todayDate}T00:00:00`);
@@ -88,7 +120,7 @@ export function PrintClient({
             {locale === "en" ? "PT" : "EN"}
           </button>
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold"
             style={{ background: "var(--accent)", color: "var(--accent-text)" }}
           >
@@ -96,6 +128,12 @@ export function PrintClient({
           </button>
         </div>
       </div>
+
+      {isStandalone && (
+        <p className="mb-4 text-xs print:hidden" style={{ color: "var(--text-muted)" }}>
+          {t("standalonePrintHint")}
+        </p>
+      )}
 
       <h1 className="masthead mb-3 text-xl print:text-2xl print:text-black">{t("printTitle")}</h1>
 
