@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { createElement } from "react";
 import { ChevronLeft, Printer, MapPin } from "lucide-react";
@@ -50,16 +50,24 @@ export function PrintClient({
   const { t, locale, setLocale, weekdayLabels, monthLabels } = useLocale();
   const [view, setView] = useState<ViewMode>("week");
 
-  // Both window.print() and a scripted window.open() are silent no-ops in an
-  // installed/home-screen PWA on iOS (standalone display mode) -- there's no
-  // Safari chrome to host either. Only a real <a target="_blank"> click
-  // reliably breaks a standalone app out into Safari, so the Print button is
-  // a genuine link; the opened tab auto-triggers the print dialog itself.
-  useEffect(() => {
-    if (new URLSearchParams(window.location.search).get("autoprint") !== "1") return;
+  // window.print() -- and even window.open()/an <a target="_blank"> click --
+  // are silent no-ops in this app's installed/home-screen standalone
+  // context on iOS: it's fully walled off, with no way to open a new
+  // browsing context at all. The Web Share API's native share sheet isn't a
+  // windowing API, so it works even there, and iOS's share sheet has its
+  // own "Print" action for a shared URL.
+  async function handlePrint() {
+    if (typeof navigator !== "undefined" && typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: t("printTitle"), url: window.location.href });
+        return;
+      } catch {
+        // User dismissed the share sheet, or sharing isn't usable here --
+        // fall through to a direct print attempt.
+      }
+    }
     window.print();
-    window.history.replaceState(null, "", window.location.pathname);
-  }, []);
+  }
 
   const days = useMemo(() => {
     const start = new Date(`${todayDate}T00:00:00`);
@@ -98,15 +106,13 @@ export function PrintClient({
           >
             {locale === "en" ? "PT" : "EN"}
           </button>
-          <a
-            href="/print?autoprint=1"
-            target="_blank"
-            rel="noopener"
+          <button
+            onClick={handlePrint}
             className="flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-semibold"
             style={{ background: "var(--accent)", color: "var(--accent-text)" }}
           >
             <Printer size={14} /> {t("print")}
-          </a>
+          </button>
         </div>
       </div>
 
